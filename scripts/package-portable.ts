@@ -9,6 +9,8 @@
  *     app/cli.js           CLI bundle
  *     app/<assets>         esbuild-emitted assets (models.json.zst, templates…)
  *     app/node_modules/    external runtime dependencies, pruned per target
+ *     install.cmd/.ps1     one-shot installer, Windows target only
+ *     install.sh           one-shot installer + PATH setup, darwin target only
  *     LICENSE, THIRD-PARTY-NOTICES.txt
  *
  * The launcher never consults the host: no system Node.js, no install, no
@@ -338,6 +340,11 @@ async function main(): Promise<void> {
 	if (spec.platform === "win32") {
 		await fs.writeFile(path.join(stage, "install.cmd"), WINDOWS_INSTALL_CMD);
 		await fs.writeFile(path.join(stage, "install.ps1"), WINDOWS_INSTALL_PS1);
+	} else {
+		// One-shot installer: copies the bundle into the user's data dir and adds
+		// it to PATH through a managed block in the shell rc file.
+		await fs.copyFile(path.join(repoRoot, "scripts", "portable-install.sh"), path.join(stage, "install.sh"));
+		await fs.chmod(path.join(stage, "install.sh"), 0o755);
 	}
 
 	const size = await directorySize(stage);

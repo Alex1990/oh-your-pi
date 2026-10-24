@@ -228,12 +228,37 @@ Smoke test before archiving:
 # expect: oyp/X.Y.Z
 ```
 
-Archive with bsdtar (`tar.exe`), which handles both formats:
+The darwin stage carries `install.sh` (the Windows stage carries `install.cmd`
+/`install.ps1`). On the target Mac, `sh install.sh` copies the bundle to
+`~/.local/share/oyp` and adds that directory to PATH through a managed
+`# >>> oyp >>>` block in `~/.zshrc`; `--shell bash` writes `~/.bashrc` instead,
+and `PI_INSTALL_DIR` overrides the destination.
+
+Archive the Windows bundle with bsdtar (`tar.exe`):
 
 ```bash
 cd /c/Users/<user>/oyp-build/portable
 tar -a -cf oyp-win32-x64.zip oyp-win32-x64
-tar -czf oyp-darwin-arm64.tar.gz oyp-darwin-arm64
+```
+
+The darwin tarball needs real Unix modes. `tar.exe` is bsdtar — it rejects
+`--mode`, and NTFS has no executable bit, so `tar -czf` writes 0666 entries and
+the extracted `oyp` launcher plus `runtime/node` will not run. Build the stream
+with the repo's archiver instead (it forces 0755 on `oyp`, `runtime/node`, and
+`install.sh`):
+
+```bash
+node --experimental-transform-types --import ./scripts/node-runtime-loader.mjs \
+  scripts/ci-release-archive.ts \
+  --target-dir "C:/Users/<user>/oyp-build/portable/oyp-darwin-arm64" \
+  --out "C:/Users/<user>/oyp-build/portable/oyp-darwin-arm64.tar.gz"
+```
+
+Verify the modes landed (expect `-rwxr-xr-x` for the three):
+
+```bash
+tar -tvzf "C:/Users/<user>/oyp-build/portable/oyp-darwin-arm64.tar.gz" \
+  | grep -E ' (oyp|install\.sh|runtime/node)$'
 ```
 
 ### 5f. Checksums
