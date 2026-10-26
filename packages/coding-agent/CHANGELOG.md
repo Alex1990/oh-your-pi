@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The default system prompt now identifies this CLI as `oyp` and states that `omp` is a separate upstream install whose `~/.omp`/`.omp` state it never reads, writes, or migrates
+
 ## [18.12.3] - 2026-10-23
 
 ### Breaking Changes
