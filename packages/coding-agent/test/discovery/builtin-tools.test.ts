@@ -6,7 +6,7 @@ import { clearCache as clearFsCache } from "@oh-my-pi/pi-coding-agent/capability
 import { type CustomTool, toolCapability } from "@oh-my-pi/pi-coding-agent/capability/tool";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { initializeWithSettings, loadCapability } from "@oh-my-pi/pi-coding-agent/discovery";
-import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { clearPluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { discoverCustomToolPaths, loadCustomTools } from "@oh-my-pi/pi-coding-agent/extensibility/custom-tools/loader";
 import { __resetDirsFromEnvForTests, removeWithRetries, setAgentDir } from "@oh-my-pi/pi-utils";
 import { restoreEnvValue } from "../helpers/settings-test-state";
@@ -34,7 +34,7 @@ describe("native executable custom tool discovery", () => {
 
 	beforeEach(async () => {
 		resetSettingsForTest();
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearFsCache();
 		originalHome = process.env.HOME;
 		originalAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
@@ -58,7 +58,7 @@ describe("native executable custom tool discovery", () => {
 
 	afterEach(async () => {
 		resetSettingsForTest();
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearFsCache();
 		vi.restoreAllMocks();
 		restoreEnvValue("HOME", originalHome);

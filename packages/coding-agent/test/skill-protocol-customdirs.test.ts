@@ -108,11 +108,14 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		// Consume the visible provenance, not renderer-only details, to locate the sibling.
 		const sourcePath = text.match(/\[Skill file: (.+)\]/)?.[1];
 		expect(sourcePath).toBe(helper.filePath);
-		const proc = bun.spawn([process.execPath, ...nodeSourceFlags(), path.join(path.dirname(sourcePath!), "scripts", "helper.ts")], {
-			cwd: skills[0].baseDir,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
+		const proc = bun.spawn(
+			[process.execPath, ...nodeSourceFlags(), path.join(path.dirname(sourcePath!), "scripts", "helper.ts")],
+			{
+				cwd: skills[0].baseDir,
+				stdout: "pipe",
+				stderr: "pipe",
+			},
+		);
 		const [exitCode, output] = await Promise.all([proc.exited, new Response(proc.stdout).text()]);
 		expect(exitCode).toBe(0);
 		expect(output).toBe("helper from plugin-b");
@@ -257,7 +260,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		tempDirs.push(customDir);
 
 		// A default discovery path (Claude project skills) claims the name first.
-		const defaultSkill = path.join(cwd, ".claude", "skills", "shared-name");
+		const defaultSkill = path.join(cwd, ".agents", "skills", "shared-name");
 		await fs.mkdir(defaultSkill, { recursive: true });
 		await bun.write(path.join(defaultSkill, "SKILL.md"), makeSkillMd("shared-name", "default"));
 
@@ -268,13 +271,9 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 
 		const { skills } = await loadSkills({
 			cwd,
-			enableCodexUser: false,
-			enableClaudeUser: false,
-			enableClaudeProject: true,
 			enablePiUser: false,
 			enablePiProject: false,
 			enableAgentsUser: false,
-			enableAgentsProject: false,
 			customDirectories: [customDir],
 		});
 		setActiveSkills(skills);
@@ -282,7 +281,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 		// The custom-directory skill overrides onto the bare name (#7190); the
 		// displaced provider skill stays reachable under its namespaced form.
 		const bareEntry = skills.find(s => s.name === "shared-name");
-		const defaultEntry = skills.find(s => s.name === "claude/shared-name");
+		const defaultEntry = skills.find(s => s.name === "agents/shared-name");
 		expect(bareEntry).toBeDefined();
 		expect(defaultEntry).toBeDefined();
 		expect(bareEntry!.filePath).toBe(path.join(customSkill, "SKILL.md"));
@@ -302,7 +301,7 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 
 		// A default discovery path (Claude project skills) claims the name first,
 		// with the SAME body the custom-directory skill below will also carry.
-		const defaultSkill = path.join(cwd, ".claude", "skills", "shared-name");
+		const defaultSkill = path.join(cwd, ".agents", "skills", "shared-name");
 		await fs.mkdir(defaultSkill, { recursive: true });
 		await bun.write(path.join(defaultSkill, "SKILL.md"), makeSkillMd("shared-name", "same"));
 
@@ -313,13 +312,9 @@ describe("skill:// resolution honors skills.customDirectories (#7190)", () => {
 
 		const { skills } = await loadSkills({
 			cwd,
-			enableCodexUser: false,
-			enableClaudeUser: false,
-			enableClaudeProject: true,
 			enablePiUser: false,
 			enablePiProject: false,
 			enableAgentsUser: false,
-			enableAgentsProject: false,
 			customDirectories: [customDir],
 		});
 		setActiveSkills(skills);

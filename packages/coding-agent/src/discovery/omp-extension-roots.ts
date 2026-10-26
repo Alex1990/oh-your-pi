@@ -24,7 +24,7 @@ import { readDirEntries, readFile } from "../capability/fs";
 import type { ExtensionRootMode, LoadContext } from "../capability/types";
 import { getEnabledPlugins } from "../extensibility/plugins/loader";
 import { expandTilde } from "../tools/path-utils";
-import { listClaudePluginRoots } from "./helpers";
+import { listPluginRoots } from "./helpers";
 
 /** A resolved extension package directory wired into the discovery surfaces. */
 export interface OmpExtensionRoot {
@@ -265,12 +265,11 @@ async function isDirectory(p: string): Promise<boolean> {
  *    `--extension`). Always active, always user-level.
  * 2. Configured lane — the effective `extensions:` setting, added only in
  *    `merge` mode. Its provenance (`configuredLevel`) is carried from
- *    `Settings` (the authority that merges every project provider, incl.
- *    `.claude/settings.json`, and honors overlays/overrides), never re-derived
- *    from a partial `.oyp` disk scan; scopeless callers read the persisted
- *    `.oyp` config, which supplies its own level.
+ *    `Settings` (the authority that merges project config and honors
+ *    overlays/overrides), never re-derived from a partial `.oyp` disk scan;
+ *    scopeless callers read the persisted `.oyp` config, which supplies its own level.
  * 3. Installed npm/link plugins under `<plugins>/node_modules/`, added only in
- *    `merge` mode. Marketplace installs load via the `claude-plugins` provider.
+ *    `merge` mode. Marketplace installs load via the `agent-plugins` provider.
  *
  * `explicit-only` mode (an SDK `disableExtensionDiscovery` session) contributes
  * the explicit lane alone — no ambient `extensions:`, installed plugins, or
@@ -297,11 +296,11 @@ export async function listOmpExtensionRoots(ctx: LoadContext): Promise<OmpExtens
 		const installedPlugins = await listInstalledPluginRoots(ctx);
 		// Configured lane. When a session supplies the effective value (reload
 		// struct or invocation-scoped snapshot), its provenance came from
-		// `Settings` — the authority that merges every project provider (incl.
-		// `.claude/settings.json`) and honors overlays/overrides — so trust the
-		// carried `configuredLevel` verbatim. When no session value is present,
-		// read the persisted `.oyp` config on disk, which is the authoritative
-		// source (and its own provenance) in that scopeless path.
+		// `Settings` — the authority that merges project config and honors
+		// overlays/overrides — so trust the carried `configuredLevel` verbatim.
+		// When no session value is present, read the persisted `.oyp` config on
+		// disk, which is the authoritative source (and its own provenance) in
+		// that scopeless path.
 		const configuredEntries = ctx.extensionRoots?.configured ?? scopedRoots?.configuredExtensions;
 		const configured =
 			configuredEntries !== undefined
@@ -346,9 +345,9 @@ export async function listOmpExtensionRoots(ctx: LoadContext): Promise<OmpExtens
  * already feeds the extension factory loader.
  *
  * Marketplace installs also create runtime symlinks for enable-state persistence,
- * but their resources are discovered through the `claude-plugins` provider.
+ * but their resources are discovered through the `agent-plugins` provider.
  * Filtering them here prevents `/status` from showing the same plugin under both
- * "Claude Code Marketplace" and "OMP Extension Packages".
+ * "Plugin Marketplaces" and "OMP Extension Packages".
  */
 async function realpathOrResolved(p: string): Promise<string> {
 	try {
@@ -363,7 +362,7 @@ async function listInstalledPluginRoots(ctx: LoadContext): Promise<InjectedRoot[
 	try {
 		const [plugins, marketplaceRoots] = await Promise.all([
 			getEnabledPlugins(ctx.cwd, { home: ctx.home }),
-			listClaudePluginRoots(ctx.home, ctx.cwd),
+			listPluginRoots(ctx.home, ctx.cwd),
 		]);
 		const marketplaceRealpaths = new Set(
 			await Promise.all(marketplaceRoots.roots.map(root => realpathOrResolved(root.path))),

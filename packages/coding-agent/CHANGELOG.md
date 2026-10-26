@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Removed third-party configuration discovery: the `opencode`, `claude`, `claude-plugins`, `claude-md`, `codex`, `gemini`, `cursor`, `windsurf`, `cline`, `github`, and `vscode` providers no longer load context files, rules, skills, slash commands, MCP servers, hooks, tools, settings, or plugins from their directories, and the `skills.enableCodexUser`/`skills.enableClaudeUser`/`skills.enableClaudeProject`/`commands.enableClaudeUser`/`commands.enableClaudeProject` settings are gone
+- `listClaudePluginRoots` became `listPluginRoots` and reads only oyp's own `installed_plugins.json` registries; `clearClaudePluginRootsCache` became `clearPluginRootsCache`
+
 ### Changed
 
 - The default system prompt now identifies this CLI as `oyp` and states that `omp` is a separate upstream install whose `~/.omp`/`.omp` state it never reads, writes, or migrates

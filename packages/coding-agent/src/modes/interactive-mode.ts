@@ -85,7 +85,7 @@ import { KeybindingsManager } from "@oh-my-pi/pi-tui/app-keybindings";
 import { appKey, editorKey, rawKeyHint } from "@oh-my-pi/pi-tui/chrome/keybinding-hints";
 import { formatModelString, type ResolvedModelRoleValue } from "../config/model-resolver";
 import { isSettingsInitialized, Settings, settings } from "../config/settings";
-import { clearClaudePluginRootsCache } from "../discovery/helpers";
+import { clearPluginRootsCache } from "../discovery/helpers";
 import type {
 	AutocompleteProviderFactory,
 	ContextUsage,
@@ -2936,7 +2936,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			}
 			// Re-warm plugin roots, capabilities, slash commands, and the ssh tool so
 			// the next prompt sees everything scoped to the new project directory.
-			clearClaudePluginRootsCache();
+			clearPluginRootsCache();
 			await this.refreshTitleSystemPrompt(newCwd);
 			await this.session.refreshSkillsAndCommands();
 		} catch (error) {
@@ -2951,7 +2951,7 @@ export class InteractiveMode implements InteractiveModeContext {
 					await settings.reloadForCwd(previousCwd);
 					await rebindMemoryBackendForCwd(this.session);
 				}
-				clearClaudePluginRootsCache();
+				clearPluginRootsCache();
 				await this.refreshTitleSystemPrompt(previousCwd);
 				await this.session.refreshSkillsAndCommands();
 			} catch (restoreError) {
@@ -2962,7 +2962,7 @@ export class InteractiveMode implements InteractiveModeContext {
 						await settings.reloadForCwd(actual);
 						await rebindMemoryBackendForCwd(this.session);
 					}
-					clearClaudePluginRootsCache();
+					clearPluginRootsCache();
 					await this.refreshTitleSystemPrompt(actual);
 					await this.session.refreshSkillsAndCommands();
 				} catch {}

@@ -2,7 +2,7 @@
  * Core types for the capability-based config discovery system.
  *
  * This architecture inverts control: instead of callers knowing about paths like
- * `.claude`, `.codex`, `.gemini`, they simply ask for `load("mcps")` and get back
+ * `~/.oyp` or `.oyp`, they simply ask for `load("mcps")` and get back
  * a unified array of MCP servers.
  */
 
@@ -15,8 +15,8 @@ export type ExtensionRootMode = "merge" | "explicit-only";
  * post-startup reloads. `explicit` are the SDK `additionalExtensionPaths` / CLI
  * `--extension` roots (always active, user-level); `configured` is the live
  * `extensions:` setting (ambient, only in `merge` mode); `configuredLevel` is
- * its provenance as resolved by `Settings` (the authority — includes foreign
- * project providers like `.claude/settings.json`, never re-derived from `.oyp`
+ * its provenance as resolved by `Settings` (the authority — merged from all
+ * settings layers, never re-derived from `.oyp`
  * on disk); `mode` gates the ambient/installed sources.
  */
 export interface EffectiveExtensionRoots {
@@ -76,10 +76,10 @@ export interface Provider<T> {
 	/** Unique provider ID (e.g., "claude", "oyp", "mcp-json", "agents-md") */
 	id: string;
 
-	/** Human-readable name for UI display (e.g., "Claude Code", "OpenAI Codex") */
+	/** Human-readable name for UI display (e.g., "MCP Config") */
 	displayName: string;
 
-	/** Short description for settings UI (e.g., "Load config from ~/.claude and .claude/") */
+	/** Short description for settings UI (e.g., "Load config from ~/.oyp and .oyp/") */
 	description: string;
 
 	/**
@@ -155,20 +155,16 @@ export interface SourceMeta {
 	level: "user" | "project" | "native";
 	/**
 	 * Registry or CLI source that supplied a plugin root, when the provider
-	 * tracks it (currently `claude-plugins`: `"claude"` for `~/.claude/plugins`,
-	 * `"oyp"` for oyp's own registry, `"plugin-dir"` for `--plugin-dir`). Lets
-	 * user-scope gating distinguish oyp's own installs from the foreign Claude
-	 * tree — see `isSourceEnabled` in `extensibility/skills.ts` (#10743).
+	 * tracks it (`"oyp"` for oyp's own registry, `"plugin-dir"` for `--plugin-dir`).
 	 */
 	origin?: string;
 	/**
 	 * Plugin or package name supplying this item, for registry-backed providers
-	 * (`claude-plugins` and `agent-plugins` use the plugin name, `omp-plugins`
-	 * the extension package directory name, `skillshare` the package name).
-	 * Preferred by `skillNamespace` in `extensibility/skills.ts` over parsing
-	 * the item's path, since installed plugin caches
-	 * (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/...`)
-	 * put the version, not the plugin name, in the path segment owning `skills/`.
+	 * (`agent-plugins` uses the plugin name, `omp-plugins` the extension package
+	 * directory name, `skillshare` the package name). Preferred by
+	 * `skillNamespace` in `extensibility/skills.ts` over parsing the item's path,
+	 * since installed plugin caches put the version, not the plugin name, in the
+	 * path segment owning `skills/`.
 	 */
 	pluginName?: string;
 }

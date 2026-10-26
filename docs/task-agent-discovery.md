@@ -145,7 +145,7 @@ Because bundled parsing uses `level: "fatal"`, unrecoverable YAML errors or inva
 
 ## Filesystem and plugin discovery
 
-`discoverAgents(cwd, home, extensionRoots?)` (`src/task/discovery.ts`) merges agents from OMP-native roots, OMP extension packages, and Claude marketplace plugin roots before appending bundled definitions. Direct cross-harness roots such as `.claude/agents`, `.codex/agents`, and `.gemini/agents` are intentionally skipped — their frontmatter schema is not the OMP task-agent contract (`TASK_AGENT_CONFIG_SOURCE = ".oyp"` filters the native config-dir lists).
+`discoverAgents(cwd, home, extensionRoots?)` (`src/task/discovery.ts`) merges agents from OMP-native roots and OMP extension packages before appending bundled definitions. Native config-dir lists are filtered by the OMP task-agent contract (`TASK_AGENT_CONFIG_SOURCE = ".oyp"`).
 
 ### Discovery inputs and precedence
 
@@ -156,12 +156,11 @@ Because bundled parsing uses `level: "fatal"`, unrecoverable YAML errors or inva
    - the session's effective `extensions:` array, in its configured order
    - installed npm/link plugins
    Project and user `extensions:` arrays are not concatenated: settings use array-replacement precedence. Session overlays/runtime overrides and the configured array's project/user provenance are preserved. In `explicit-only` mode (`--no-extensions` or SDK `disableExtensionDiscovery`), only explicit roots contribute this package surface; file entrypoints have no `agents/` subdirectory to scan.
-4. Claude marketplace plugin roots (`listClaudePluginRoots(home, cwd)`) with `agents/` subdirs — only when `isProviderEnabled("claude-plugins")`; project-scope plugins sort before user-scope. User-scope roots additionally require the `claude-plugins` or `claude` user source to be enabled (`isUserSourceEnabled`: normally via `enabledProviders`, e.g. `["claude-plugins"]`; `claude` is also enabled implicitly when `CLAUDE_CONFIG_DIR` is set), except roots whose origin is not the foreign `~/.claude/plugins` tree (oyp's own installs with `origin: "oyp"` and `--plugin-dir` roots) — mirroring the skills path's exemption.
-5. Bundled agents (`loadBundledAgents()`)
+4. Bundled agents (`loadBundledAgents()`)
 
-The OMP extension-package surface is disabled when the `omp-plugins` capability provider is disabled. Marketplace roots are excluded from `listOmpExtensionRoots` and enter only through the separately gated Claude-plugin path.
+The OMP extension-package surface is disabled when the `omp-plugins` capability provider is disabled. Plugin roots come from the OMP plugin loader (`listPluginRoots`), which reads the installed-plugin registry under `~/.oyp/plugins` and the project `.oyp/plugins`, plus any `--plugin-dir` roots.
 
-Claude-dialect plugin agents discard their frontmatter `model` so Claude aliases are not misread as OMP selectors. This applies to foreign Claude roots and packages whose manifest declares the Claude format, including OMP installs or `--plugin-dir` roots. OMP-native and Agent-Plugins-standard packages retain their model selectors.
+Claude-dialect plugin agents discard their frontmatter `model` so Claude aliases are not misread as OMP selectors. Packages declare the Claude dialect through a `.claude-plugin/plugin.json` manifest; OMP-native and Agent-Plugins-standard packages retain their model selectors.
 
 ## Merge and collision rules
 
@@ -174,7 +173,7 @@ Discovery uses first-wins dedup by exact `agent.name`:
 Implications:
 
 - Project `.oyp` overrides user `.oyp`.
-- Earlier extension roots override later extension roots, Claude marketplace plugins, and bundled agents.
+- Earlier extension roots override later extension roots and bundled agents.
 - Non-bundled agents override bundled agents with the same name.
 - Name matching is case-sensitive (`Task` and `task` are distinct).
 - Within one directory, markdown files are read in lexicographic filename order before dedup.

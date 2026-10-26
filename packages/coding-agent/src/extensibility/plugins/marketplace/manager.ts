@@ -3,7 +3,7 @@
  *
  * Constructor takes explicit paths for testability (same pattern as registry.ts).
  * The `clearPluginRootsCache` dependency is injected so callers can provide
- * the real `clearClaudePluginRootsCache` while tests supply a counter stub.
+ * the real `clearPluginRootsCache` while tests supply a counter stub.
  */
 
 import * as fs from "node:fs/promises";
@@ -71,7 +71,7 @@ export interface MarketplaceManagerOptions {
 	projectInstalledRegistryPath?: string;
 	marketplacesCacheDir: string;
 	pluginsCacheDir: string;
-	/** Injected for testing; production callers pass clearClaudePluginRootsCache.
+	/** Injected for testing; production callers pass clearPluginRootsCache.
 	 *  Receives any additional file paths that should also be invalidated from the fs cache.
 	 */
 	clearPluginRootsCache?: (extraPaths?: readonly string[]) => void;

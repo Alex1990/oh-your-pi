@@ -47,17 +47,8 @@ let unboundEnabledProviders = new Set<string>();
 const cfgDisabledProviderSet = cfgDisabledProviders.map(ids => new Set(ids));
 const cfgEnabledProviderSet = cfgEnabledProviders.map(ids => new Set(ids));
 
-/** Foreign tools whose user-level (~/...) configs are opt-in */
-const FOREIGN_USER_PROVIDERS: Record<string, true> = {
-	cursor: true,
-	codex: true,
-	claude: true,
-	"claude-plugins": true,
-	gemini: true,
-	opencode: true,
-	windsurf: true,
-	github: true,
-};
+/** Foreign tools whose user-level (~/...) configs are opt-in. Empty: oyp reads only its own sources. */
+const FOREIGN_USER_PROVIDERS: Record<string, true> = {};
 
 /** Outstanding {@link initializeWithSettings} holds, oldest first; the newest one is bound. */
 const settingsHolds: { settings: Settings }[] = [];
@@ -355,10 +346,9 @@ export function isForeignUserProvider(providerId: string): boolean {
 
 /**
  * Check whether a user-level (~/...) config source is enabled.
- * Native (.oyp) and .agents directories are enabled by default.
- * Foreign tool directories (~/.cursor, ~/.codex, ~/.claude, etc.) are opt-in
- * via `enabledProviders`. Project-level (cwd) config is unaffected; see
- * {@link isProviderEnabled} for the whole-provider switch.
+ * Every remaining source is oyp-native; `disabledProviders` still applies.
+ * Project-level (cwd) config is unaffected; see {@link isProviderEnabled} for
+ * the whole-provider switch.
  */
 export function isUserSourceEnabled(source: string, ctx?: LoadContext): boolean {
 	const id = source.replace(/^\./, "");
@@ -367,8 +357,6 @@ export function isUserSourceEnabled(source: string, ctx?: LoadContext): boolean 
 	if (ctx?.explicitProviders?.has(id) || ctx?.includeOptOutUserSources) return true;
 	const enabled = enabledProviders();
 	if (enabled.has(id) || enabled.has("*") || enabled.has("all")) return true;
-	if (id === "claude-plugins" && enabled.has("claude")) return true;
-	if (id === "claude" && process.env.CLAUDE_CONFIG_DIR?.trim()) return true;
 	return false;
 }
 

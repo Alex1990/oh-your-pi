@@ -13,7 +13,6 @@ import {
 	parseFrontmatter,
 	tryParseJson,
 } from "@oh-my-pi/pi-utils";
-import { isUserSourceEnabled } from "../capability";
 import type { ContextFile } from "../capability/context-file";
 import type { ExtensionModule } from "../capability/extension-module";
 import { invalidate as invalidateFsCache, readDirEntries, readFile } from "../capability/fs";
@@ -27,7 +26,6 @@ import {
 } from "../capability/rule";
 import type { Skill, SkillFrontmatter } from "../capability/skill";
 import type { LoadContext, LoadResult, SourceMeta } from "../capability/types";
-import { resolveClaudePaths } from "../config/claude-paths";
 import type { MCPRequestIdFormat } from "../mcp/types";
 import { type ConfiguredThinkingLevel, parseConfiguredThinkingLevel } from "@oh-my-pi/pi-tui/thinking";
 import { normalizeToolNames } from "../tools/builtin-names";
@@ -49,100 +47,9 @@ export const SOURCE_PATHS = {
 		},
 		projectDir: CONFIG_DIR_NAME,
 	},
-	claude: {
-		userBase: ".claude",
-		userAgent: ".claude",
-		projectDir: ".claude",
-	},
-	codex: {
-		userBase: ".codex",
-		userAgent: ".codex",
-		projectDir: ".codex",
-	},
-	gemini: {
-		userBase: ".gemini",
-		userAgent: ".gemini",
-		projectDir: ".gemini",
-	},
-	opencode: {
-		userBase: ".config/opencode",
-		userAgent: ".config/opencode",
-		projectDir: ".opencode",
-	},
-	cursor: {
-		userBase: ".cursor",
-		userAgent: ".cursor",
-		projectDir: ".cursor",
-	},
-	windsurf: {
-		userBase: ".codeium/windsurf",
-		userAgent: ".codeium/windsurf",
-		projectDir: ".windsurf",
-	},
-	cline: {
-		userBase: ".cline",
-		userAgent: ".cline",
-		projectDir: null, // Cline uses root-level .clinerules
-	},
-	github: {
-		userBase: null,
-		userAgent: null,
-		projectDir: ".github",
-	},
-	vscode: {
-		userBase: ".vscode",
-		userAgent: ".vscode",
-		projectDir: ".vscode",
-	},
 } as const;
 
 export type SourceId = keyof typeof SOURCE_PATHS;
-
-/**
- * Resolve a user-level path for a source without the `~/` opt-in gate.
- * Only for callers that hold their own explicit opt-in (a per-capability
- * `skills.enable*User` / `commands.enable*User` toggle); everything else
- * goes through {@link getUserPath}.
- */
-export function resolveUserPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
-	// Native user config is profile-scoped via getAgentDir() (the active profile's
-	// agent dir), matching builtin.ts and getMCPConfigPath("user").
-	if (source === "native") return path.join(getAgentDir(), subpath);
-	if (source === "claude") return path.join(resolveClaudePaths(ctx.home).configDir, subpath);
-	const paths = SOURCE_PATHS[source];
-	if (!paths.userAgent) return null;
-	return path.join(ctx.home, paths.userAgent, subpath);
-}
-
-/**
- * Get user-level path for a source, or null when its `~/` config is not
- * opted in (see {@link isUserSourceEnabled}).
- */
-export function getUserPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
-	if (!isUserSourceEnabled(source, ctx)) return null;
-	return resolveUserPath(ctx, source, subpath);
-}
-
-/**
- * Get project-level path for a source (cwd only).
- */
-export function getProjectPath(ctx: LoadContext, source: SourceId, subpath: string): string | null {
-	const paths = SOURCE_PATHS[source];
-	if (!paths.projectDir) return null;
-
-	return path.join(ctx.cwd, paths.projectDir, subpath);
-}
-
-/**
- * Resolve GitHub Copilot CLI's user-global config root. Copilot stores per-user
- * instructions/prompts/agents/MCP under `~/.copilot`, relocatable via the
- * `COPILOT_HOME` env var (mirrors Copilot CLI's `--config-dir`). Falls back to
- * `<home>/.copilot` when the override is unset.
- */
-export function resolveCopilotHome(home: string): string {
-	const override = process.env.COPILOT_HOME?.trim();
-	return override ? override : path.join(home, ".copilot");
-}
 
 /**
  * Create source metadata for an item.
@@ -630,8 +537,8 @@ export async function loadFilesFromDir<T>(
 			fileType: FileType.File,
 			// Thread the caller's non-recursive intent explicitly: the native glob
 			// defaults `recursive` to true and rewrites `*.{ts,js}` -> `**/*.{ts,js}`,
-			// which would walk the entire subtree (e.g. a venv's site-packages under
-			// ~/.codex/tools) and import arbitrary frontend assets as tools (#8552).
+			// which would walk the entire subtree and import arbitrary frontend
+			// assets as tools (#8552).
 			recursive,
 		});
 		matches = result.matches;
@@ -971,14 +878,14 @@ export function buildExtensionModuleItems(
 }
 
 // =============================================================================
-// Claude Code Plugin Cache Helpers
+// Plugin Root Helpers
 // =============================================================================
 
 /**
- * Entry for an installed Claude Code plugin.
+ * Entry for an installed plugin in an oyp plugin registry.
  */
-export interface ClaudePluginEntry {
-	/** Claude registry scope; project and local entries are restricted to their project path. */
+export interface PluginEntry {
+	/** Registry scope; project and local entries are restricted to their project path. */
 	scope?: "user" | "project" | "local";
 	installPath: string;
 	version: string;
@@ -986,22 +893,20 @@ export interface ClaudePluginEntry {
 	lastUpdated: string;
 	gitCommitSha?: string;
 	enabled?: boolean;
-	/** Project root recorded by Claude for a project-bound installation. */
-	projectPath?: string;
 }
 
 /**
- * Claude Code installed_plugins.json registry format.
+ * `installed_plugins.json` registry format written by oyp's marketplace.
  */
-export interface ClaudePluginsRegistry {
+export interface PluginsRegistry {
 	version: number;
-	plugins: Record<string, ClaudePluginEntry[]>;
+	plugins: Record<string, PluginEntry[]>;
 }
 
 /**
  * Resolved plugin root for loading.
  */
-export interface ClaudePluginRoot {
+export interface PluginRoot {
 	/** Plugin ID (e.g., "simpleclaude-core@simpleclaude") */
 	id: string;
 	/** Marketplace name */
@@ -1015,14 +920,14 @@ export interface ClaudePluginRoot {
 	/** Whether this is a user or project scope plugin */
 	scope: "user" | "project";
 	/** Registry or explicit CLI source that supplied this root. */
-	origin: "claude" | "oyp" | "plugin-dir";
+	origin: "oyp" | "plugin-dir";
 }
 
 /**
- * Parse Claude Code installed_plugins.json content.
+ * Parse an oyp `installed_plugins.json` registry.
  */
-export function parseClaudePluginsRegistry(content: string): ClaudePluginsRegistry | null {
-	const data = tryParseJson<ClaudePluginsRegistry>(content);
+export function parsePluginsRegistry(content: string): PluginsRegistry | null {
+	const data = tryParseJson<PluginsRegistry>(content);
 	if (!data || typeof data !== "object") return null;
 	if (
 		typeof data.version !== "number" ||
@@ -1161,49 +1066,7 @@ export async function resolveOrDefaultProjectRegistryPath(cwd: string): Promise<
 	return path.join(cwd, getConfigDirName(), "plugins", "installed_plugins.json");
 }
 
-async function canonicalClaudeProjectPath(projectPath: string): Promise<string | null> {
-	try {
-		return await fs.promises.realpath(path.resolve(projectPath));
-	} catch {
-		return null;
-	}
-}
-
-/**
- * Claude Code `enabledPlugins` overrides, merged across the same settings
- * layers Claude Code itself consults: `<claude-config>/settings.json`, then
- * `<dir>/.claude/settings.json` and `<dir>/.claude/settings.local.json` for
- * each project directory (later layers win, `.local` wins within a layer).
- *
- * Returns `pluginId -> boolean` for the ids the user toggled explicitly, and
- * the list of settings files that contributed (for cache keying).
- */
-async function readClaudeEnabledPlugins(
-	claudeConfigDir: string,
-	projectDirs: string[],
-): Promise<{ enabled: Map<string, boolean>; sources: string[] }> {
-	const enabled = new Map<string, boolean>();
-	const sources: string[] = [];
-	const candidates = [path.join(claudeConfigDir, "settings.json")];
-	for (const dir of projectDirs) {
-		candidates.push(path.join(dir, ".claude", "settings.json"), path.join(dir, ".claude", "settings.local.json"));
-	}
-	for (const file of candidates) {
-		const content = await readFile(file);
-		if (!content) continue;
-		const data = tryParseJson<{ enabledPlugins?: unknown }>(content);
-		if (!data || typeof data !== "object") continue;
-		const map = data.enabledPlugins;
-		if (!map || typeof map !== "object" || Array.isArray(map)) continue;
-		sources.push(file);
-		for (const [pluginId, value] of Object.entries(map as Record<string, unknown>)) {
-			if (typeof value === "boolean") enabled.set(pluginId, value);
-		}
-	}
-	return { enabled, sources };
-}
-
-type PluginRootsResult = { roots: ClaudePluginRoot[]; warnings: string[] };
+type PluginRootsResult = { roots: PluginRoot[]; warnings: string[] };
 
 const pluginRootsCache = new Map<string, Promise<PluginRootsResult>>();
 
@@ -1215,39 +1078,27 @@ export function registerPluginCacheInvalidator(invalidator: () => void): void {
 }
 
 /**
- * List all installed Claude Code plugin roots from its active plugin cache and
- * ~/.oyp/plugins/installed_plugins.json, plus the nearest project registry when present.
+ * List installed oyp plugin roots from `~/.oyp/plugins/installed_plugins.json`,
+ * plus the nearest project registry when present.
  *
- * Results are cached per Claude and OMP config directories, project registry, and canonical active project.
+ * Results are cached per oyp plugin registry and project registry.
  */
-export async function listClaudePluginRoots(
+export async function listPluginRoots(
 	home: string,
 	cwd?: string,
-): Promise<{ roots: ClaudePluginRoot[]; warnings: string[] }> {
-	const claudeConfigDir = resolveClaudePaths(home).configDir;
+): Promise<{ roots: PluginRoot[]; warnings: string[] }> {
 	const ompRegistryPath = path.join(getPluginsDir(home), "installed_plugins.json");
 	const projectPath = cwd ? await resolveActiveProjectRegistryPath(cwd) : null;
 	const resolvedProjectPath =
 		projectPath && normalizePathForComparison(projectPath) !== normalizePathForComparison(ompRegistryPath)
 			? projectPath
 			: null;
-	const projectRoot = resolvedProjectPath ? path.dirname(path.dirname(path.dirname(resolvedProjectPath))) : cwd;
-	const activeClaudeProjectPath = projectRoot ? await canonicalClaudeProjectPath(projectRoot) : null;
-	const canonicalCwd = cwd ? await canonicalClaudeProjectPath(cwd) : null;
-	const settingsDirs = [...new Set([activeClaudeProjectPath, canonicalCwd].filter((d): d is string => !!d))];
-	const enabledOverrides = await readClaudeEnabledPlugins(claudeConfigDir, settingsDirs);
-	const cacheKey = `${claudeConfigDir}:${ompRegistryPath}:${resolvedProjectPath ?? ""}:${activeClaudeProjectPath ?? ""}:${canonicalCwd ?? ""}:${enabledOverrides.sources.join("|")}`;
+	const cacheKey = `${ompRegistryPath}:${resolvedProjectPath ?? ""}`;
 	const cached = pluginRootsCache.get(cacheKey);
 	if (cached) return cached;
 
 	// Cache the in-flight promise so concurrent callers share one computation.
-	const pending = loadClaudePluginRoots({
-		claudeConfigDir,
-		ompRegistryPath,
-		resolvedProjectPath,
-		activeClaudeProjectPath,
-		enabledOverrides,
-	});
+	const pending = loadPluginRoots({ ompRegistryPath, resolvedProjectPath });
 	pluginRootsCache.set(cacheKey, pending);
 	try {
 		return await pending;
@@ -1257,93 +1108,25 @@ export async function listClaudePluginRoots(
 	}
 }
 
-async function loadClaudePluginRoots({
-	claudeConfigDir,
+async function loadPluginRoots({
 	ompRegistryPath,
 	resolvedProjectPath,
-	activeClaudeProjectPath,
-	enabledOverrides,
 }: {
-	claudeConfigDir: string;
 	ompRegistryPath: string;
 	resolvedProjectPath: string | null;
-	activeClaudeProjectPath: string | null;
-	enabledOverrides: { enabled: Map<string, boolean>; sources: string[] };
 }): Promise<PluginRootsResult> {
-	const roots: ClaudePluginRoot[] = [];
+	const roots: PluginRoot[] = [];
 	const warnings: string[] = [];
-	const projectRoots: ClaudePluginRoot[] = [];
-	const canonicalClaudeProjectPaths = new Map<string, string | null>();
+	const projectRoots: PluginRoot[] = [];
 
-	// ── Claude Code registry ──────────────────────────────────────────────────
-	const registryPath = path.join(claudeConfigDir, "plugins", "installed_plugins.json");
-	const content = await readFile(registryPath);
-
-	if (content) {
-		const registry = parseClaudePluginsRegistry(content);
-		if (!registry) {
-			warnings.push(`Failed to parse Claude Code plugin registry: ${registryPath}`);
-		} else {
-			for (const [pluginId, entries] of Object.entries(registry.plugins)) {
-				if (!Array.isArray(entries) || entries.length === 0) continue;
-
-				// Parse plugin ID format: "plugin-name@marketplace"
-				const atIndex = pluginId.lastIndexOf("@");
-				if (atIndex === -1) {
-					warnings.push(`Invalid plugin ID format (missing @marketplace): ${pluginId}`);
-					continue;
-				}
-
-				const pluginName = pluginId.slice(0, atIndex);
-				const marketplace = pluginId.slice(atIndex + 1);
-
-				// Process all valid entries, not just the first one.
-				// This handles plugins with multiple installs (different scopes/versions).
-				for (const entry of entries) {
-					if (!entry.installPath || typeof entry.installPath !== "string") {
-						warnings.push(`Plugin ${pluginId} entry has no installPath`);
-						continue;
-					}
-					if (entry.enabled === false) continue;
-					// Claude Code's own on/off switch: `enabledPlugins` in settings.json /
-					// settings.local.json. `false` hides the plugin here even though it is
-					// installed; `true` opts a project-bound install into this project even
-					// when its recorded projectPath is a different directory.
-					const override = enabledOverrides.enabled.get(pluginId);
-					if (override === false) continue;
-					if ((entry.scope === "local" || entry.scope === "project") && override !== true) {
-						if (!entry.projectPath || !activeClaudeProjectPath) continue;
-						let entryProjectPath = canonicalClaudeProjectPaths.get(entry.projectPath);
-						if (entryProjectPath === undefined) {
-							entryProjectPath = await canonicalClaudeProjectPath(entry.projectPath);
-							canonicalClaudeProjectPaths.set(entry.projectPath, entryProjectPath);
-						}
-						if (entryProjectPath !== activeClaudeProjectPath) continue;
-					}
-
-					roots.push({
-						id: pluginId,
-						marketplace,
-						plugin: pluginName,
-						version: entry.version || "unknown",
-						path: entry.installPath,
-						scope: entry.scope === "local" ? "project" : entry.scope || "user",
-						origin: "claude",
-					});
-				}
-			}
-		}
-	}
-
-	// ── OMP installed plugins registry ───────────────────────────────────────
-	// OMP registry is authoritative: its entries replace Claude's entries for the same plugin ID.
+	// ── oyp installed plugins registry ───────────────────────────────────────
 	// In production `home` is `os.homedir()`, so `getPluginsDir(home)` resolves to the
 	// same XDG-aware path the marketplace writer uses (reads and writes always agree).
 	// Tests pass a temp dir, which short-circuits the resolver for deterministic isolation.
-	// Computed before the cache lookup because isolated SDK homes select distinct OMP registries.
+	// Computed before the cache lookup because isolated SDK homes select distinct registries.
 	const ompContent = await readFile(ompRegistryPath);
 	if (ompContent) {
-		const ompRegistry = parseClaudePluginsRegistry(ompContent);
+		const ompRegistry = parsePluginsRegistry(ompContent);
 		if (ompRegistry) {
 			for (const [pluginId, entries] of Object.entries(ompRegistry.plugins)) {
 				if (!Array.isArray(entries) || entries.length === 0) continue;
@@ -1355,11 +1138,6 @@ async function loadClaudePluginRoots({
 				}
 				const pluginName = pluginId.slice(0, atIndex);
 				const marketplace = pluginId.slice(atIndex + 1);
-
-				// OMP is authoritative: drop all Claude-sourced entries for this plugin ID
-				const filtered = roots.filter(r => r.id !== pluginId);
-				roots.length = 0;
-				roots.push(...filtered);
 
 				for (const entry of entries) {
 					if (!entry.installPath || typeof entry.installPath !== "string") {
@@ -1382,17 +1160,17 @@ async function loadClaudePluginRoots({
 				}
 			}
 		} else {
-			warnings.push(`Failed to parse OMP plugin registry: ${ompRegistryPath}`);
+			warnings.push(`Failed to parse plugin registry: ${ompRegistryPath}`);
 		}
 	}
 
-	// ── Project-scoped OMP registry ────────────────────────────────────────
+	// ── Project-scoped registry ────────────────────────────────────────────
 	// Loaded from the nearest .oyp/plugins/installed_plugins.json relative to cwd.
 	// Project entries take precedence over user entries for the same plugin ID.
 	if (resolvedProjectPath) {
 		const projectContent = await readFile(resolvedProjectPath);
 		if (projectContent) {
-			const projectRegistry = parseClaudePluginsRegistry(projectContent);
+			const projectRegistry = parsePluginsRegistry(projectContent);
 			if (projectRegistry) {
 				for (const [pluginId, entries] of Object.entries(projectRegistry.plugins)) {
 					if (!Array.isArray(entries) || entries.length === 0) continue;
@@ -1450,7 +1228,7 @@ async function loadClaudePluginRoots({
 /**
  * Clear the plugin roots cache (useful for testing or when plugins change).
  */
-export function clearClaudePluginRootsCache(): void {
+export function clearPluginRootsCache(): void {
 	pluginRootsCache.clear();
 	for (const invalidate of pluginCacheInvalidators) invalidate();
 	preloadedPluginRoots = [...injectedPluginDirRoots];
@@ -1466,18 +1244,17 @@ export function clearClaudePluginRootsCache(): void {
  * installing/uninstalling/enabling/disabling plugins.
  */
 export function clearPluginRootsAndCaches(extraPaths?: readonly string[]): void {
-	invalidateFsCache(path.join(resolveClaudePaths().configDir, "plugins", "installed_plugins.json"));
 	invalidateFsCache(path.join(getPluginsDir(), "installed_plugins.json"));
 	for (const p of extraPaths ?? []) invalidateFsCache(p);
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 }
 
 // ── Preloaded plugin roots (for sync consumers like LSP config) ─────────────
 // Populated at startup by preloadPluginRoots(). Read synchronously by
 // getPreloadedPluginRoots(). Safe degradation: empty array if not warmed.
 
-let preloadedPluginRoots: ClaudePluginRoot[] = [];
-let injectedPluginDirRoots: ClaudePluginRoot[] = [];
+let preloadedPluginRoots: PluginRoot[] = [];
+let injectedPluginDirRoots: PluginRoot[] = [];
 let lastPreloadHome: string | undefined;
 
 /**
@@ -1487,7 +1264,7 @@ let lastPreloadHome: string | undefined;
  */
 export async function preloadPluginRoots(home: string, cwd?: string): Promise<void> {
 	lastPreloadHome = home;
-	const { roots } = await listClaudePluginRoots(home, cwd);
+	const { roots } = await listPluginRoots(home, cwd);
 	preloadedPluginRoots = roots;
 }
 
@@ -1495,7 +1272,7 @@ export async function preloadPluginRoots(home: string, cwd?: string): Promise<vo
  * Get pre-loaded plugin roots synchronously.
  * Returns empty array if preloadPluginRoots() hasn't been called.
  */
-export function getPreloadedPluginRoots(): readonly ClaudePluginRoot[] {
+export function getPreloadedPluginRoots(): readonly PluginRoot[] {
 	return preloadedPluginRoots;
 }
 
@@ -1503,25 +1280,22 @@ export function getPreloadedPluginRoots(): readonly ClaudePluginRoot[] {
 
 /**
  * Inject synthetic plugin roots from --plugin-dir paths.
- * These are prepended to the cache with highest precedence (before OMP/Claude entries).
- * Must be called before any listClaudePluginRoots() access.
+ * These are prepended to the cache with highest precedence (before registry entries).
+ * Must be called before any listPluginRoots() access.
  */
 export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: string): Promise<void> {
-	const injected: ClaudePluginRoot[] = [];
+	const injected: PluginRoot[] = [];
 	for (const dir of dirs) {
 		const resolved = path.resolve(dir);
-		// Read plugin name from manifest: Claude marketplace layout first, then
-		// the Agent Plugins standard root manifest (agent-plugins.org). Each
-		// manifest is resolved and proven inside the plugin directory BEFORE the
-		// read (Agent Plugins §4.1) — an escaping symlink falls back to the
-		// directory basename without consuming outside content.
+		// Read plugin name from the Agent Plugins standard root manifest
+		// (agent-plugins.org). The manifest is resolved and proven inside the
+		// plugin directory BEFORE the read (Agent Plugins §4.1) — an escaping
+		// symlink falls back to the directory basename without consuming outside
+		// content.
 		let pluginName = path.basename(resolved);
 		const realRoot = await realpathIfExists(resolved);
 		if (realRoot !== null) {
-			for (const manifestPath of [
-				path.join(realRoot, ".claude-plugin", "plugin.json"),
-				path.join(realRoot, "plugin.json"),
-			]) {
+			for (const manifestPath of [path.join(realRoot, "plugin.json")]) {
 				const contained = await resolveContainedPath(realRoot, manifestPath);
 				if (contained.status !== "ok") continue;
 				try {
@@ -1539,13 +1313,13 @@ export async function injectPluginDirRoots(home: string, dirs: string[], cwd?: s
 		injected.push(buildPluginDirRoot(resolved, pluginName));
 	}
 
-	// Set injected roots BEFORE populating cache so listClaudePluginRoots merges them.
+	// Set injected roots BEFORE populating cache so listPluginRoots merges them.
 	injectedPluginDirRoots = injected;
 	lastPreloadHome = home; // ensure cache-clear re-warm fires even when injectPluginDirRoots was the startup path
 	// Clear any stale cache entries (populated before injected roots were set).
 	pluginRootsCache.clear();
 	// Rebuild — cache miss triggers fresh load that includes both user+project registries
 	// and prepends injectedPluginDirRoots at highest precedence.
-	const { roots } = await listClaudePluginRoots(home, cwd);
+	const { roots } = await listPluginRoots(home, cwd);
 	preloadedPluginRoots = roots;
 }

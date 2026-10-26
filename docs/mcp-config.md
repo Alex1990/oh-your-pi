@@ -14,7 +14,7 @@ Source of truth in code:
 
 ## Preferred config locations
 
-OMP can discover MCP servers from multiple tools (`.claude/`, `.cursor/`, `.vscode/`, `opencode.json`, and more), but for OMP-native configuration you should usually use one of these primary files:
+OMP discovers MCP servers only from OMP-owned and OMP-recognized files. For OMP-native configuration you should usually use one of these primary files:
 
 - Project: `.oyp/mcp.json`
 - User: `~/.oyp/agent/mcp.json` (or `~/.oyp/profiles/<name>/agent/mcp.json` when a named profile is active — see [Profiles](#profiles))
@@ -30,20 +30,14 @@ OMP also accepts fallback standalone files in the project root:
 
 Use `.oyp/mcp.json` or `~/.oyp/agent/mcp.json` when you want OMP to own the configuration. Use root `mcp.json` / `.mcp.json` only when you want a portable fallback file that other MCP clients may also read.
 
-### Imported tool configs
+### Plugin-defined MCP servers
 
-OMP also translates these current tool-native sources:
+Installed plugins can also contribute MCP servers:
 
-- Claude Code: `~/.claude.json`, `~/.claude/mcp.json`, and project `.claude/.mcp.json` / `.claude/mcp.json`
-- Codex: `~/.codex/config.toml` and `.codex/config.toml` (`[mcp_servers.*]`)
-- Gemini CLI: `~/.gemini/settings.json` and `.gemini/settings.json`
-- OpenCode: `opencode.json` / `opencode.jsonc` in `~/.config/opencode/`, the project root, and project `.opencode/` (the `mcp` map)
-- Cursor: `~/.cursor/mcp.json` and `.cursor/mcp.json`
-- Windsurf: `~/.codeium/windsurf/mcp_config.json` and `.windsurf/mcp_config.json`
-- VS Code: project-only `.vscode/mcp.json` using `mcp.servers`
-- installed Claude marketplace plugins, OMP extension packages, and portable Agent Plugins (`plugin.json` plus root `mcp.json`) that declare MCP servers
+- OMP extension packages, which may ship a `.mcp.json` alongside their other components
+- portable Agent Plugins that declare servers in a root `mcp.json` (`plugin.json` plus `mcp.json`)
 
-For Claude Code, Codex, Gemini CLI, Cursor, and Windsurf, the project entry is encountered before its same-named user entry — matching OMP-native config, whose project entry precedes its active-profile user entry — so a project `enabled: false` suppresses a same-named user server. OpenCode deep-merges each server across layers: project overrides user, `.opencode/` overrides the project root, and `.jsonc` overrides `.json` within a directory. Partial overrides inherit fields from lower layers. Cross-provider priority is listed in [Discovery and precedence](#discovery-and-precedence).
+Plugin configs are read from the plugin's install location (`~/.oyp/plugins/` for user installs, `.oyp/plugins/` for project installs, or a `--plugin-dir` root) and cannot override same-named native entries. Provider priority is listed in [Discovery and precedence](#discovery-and-precedence).
 
 ### Profiles
 
@@ -54,7 +48,7 @@ Named profiles (`oyp --profile <name>` or `OMP_PROFILE`/`PI_PROFILE`) isolate us
 
 Discovery, the `/mcp` commands, and the config writer all follow the active profile, so a profile sees **only** its own user-level servers — never the default profile's `~/.oyp/agent/mcp.json`. Add a server to a profile by launching under it (`oyp --profile <name>`) and running `/mcp add` → User level, or by editing `~/.oyp/profiles/<name>/agent/mcp.json` directly.
 
-Project-scoped MCP config (`.oyp/mcp.json`) is keyed to the working directory, not the profile, so it applies under every profile. External-tool configs (`.claude/`, `.cursor/`, etc.) are also profile-independent because they belong to those tools rather than to an OMP profile.
+Project-scoped MCP config (`.oyp/mcp.json`) is keyed to the working directory, not the profile, so it applies under every profile. Plugin-provided configs are keyed to their install location rather than to an OMP profile.
 
 MCP follows the same profile rules as the rest of OMP-native config; see [Configuration Discovery → Profiles](./config-usage.md#profiles).
 
@@ -104,16 +98,14 @@ Shared fields for every transport:
 
 - `enabled?: boolean` — skip this server when `false`, unless the active-profile user `enabledServers` allowlist names it
 - `timeout?: number` — MCP request timeout in milliseconds; `0` disables client-side MCP timeouts
-- `requestIdFormat?: "number" | "string"` — outgoing JSON-RPC request-id encoding; defaults to per-transport integers. `"string"` uses collision-resistant snowflake IDs. This OMP-specific field is read only from OMP-native files, root `mcp.json` / `.mcp.json`, and OMP extension packages; configs translated from other tools ignore it.
-- `instructions?: boolean` — include server-provided instructions in the system prompt (default: `true`). Set `false` to omit that server's instructions without disabling its tools. Like `requestIdFormat`, this is OMP-specific and is ignored in configs translated from other tools.
+- `requestIdFormat?: "number" | "string"` — outgoing JSON-RPC request-id encoding; defaults to per-transport integers. `"string"` uses collision-resistant snowflake IDs. This OMP-specific field is read only from OMP-native files, root `mcp.json` / `.mcp.json`, and OMP extension packages.
+- `instructions?: boolean` — include server-provided instructions in the system prompt (default: `true`). Set `false` to omit that server's instructions without disabling its tools. Like `requestIdFormat`, this is an OMP-specific field and applies only to the sources listed above.
 - `auth?: { ... }` — stored-credential metadata; managed credential injection is implemented for OAuth
 - `oauth?: { ... }` — explicit OAuth client and callback settings used during auth/reauth
 
 Disable instructions when a server's guidance conflicts with your tool policy or adds unwanted context to every request, including subagent requests. If no connected server contributes instructions, the MCP Server Instructions section is omitted entirely. `instructions` does not distinguish connections: when two entries under different names describe the same endpoint, only the higher-priority entry is kept, together with its own `instructions` value, so set the option on the entry that wins (see `/mcp list`). A changed value applies to an already-connected server after `/mcp reload`.
 
 `OMP_MCP_TIMEOUT_MS` has process-wide precedence over every per-server `timeout`. Set it to `0` to disable client-side timeouts, or to a positive millisecond value such as `120000`. If it is unset or invalid, OMP uses the server value and then the 30-second default; invalid values are logged and ignored.
-
-Claude marketplace plugins follow [Claude Code's per-server timeout rule](https://code.claude.com/docs/en/mcp): their `.mcp.json` values are milliseconds, and values below `1000` are ignored with a discovery warning so OMP's normal timeout fallback applies. This restriction does not change OMP-native configurations, where `0` still disables timeouts.
 
 These request deadlines also govern subagent MCP calls over borrowed parent connections. The proxy adds no independent timeout; caller cancellation still stops the subagent's wait.
 
@@ -462,7 +454,7 @@ The active profile's user file supplies two cross-source overrides:
 }
 ```
 
-`/mcp enable` and `/mcp disable` update `enabled` directly when the definition is in an OMP-owned writable file. OMP does not mutate another tool's config: for such sources, those commands maintain the user-level allowlist or denylist instead and remove a conflicting stale override.
+`/mcp enable` and `/mcp disable` update `enabled` directly when the definition is in a writable config file. For a server defined in plugin-provided config, those commands leave the file untouched and maintain the user-level allowlist or denylist instead, removing any conflicting stale override.
 
 ## `/mcp add` vs editing JSON directly
 
@@ -500,24 +492,18 @@ These rules apply to direct configs passed to the validator/writer. Discovery fi
 
 OMP loads providers in descending priority. The MCP-capable order is:
 
-1. OMP native config
-2. OMP extension packages
-3. Claude Code
-4. Agent Plugins
-5. Claude marketplace plugins and Codex
-6. Gemini CLI
-7. OpenCode
-8. Cursor and Windsurf
-9. VS Code
-10. root `mcp.json` / `.mcp.json` fallback files
+1. `native` (100) — `.oyp/mcp.json`, `.oyp/.mcp.json`, the active profile's user `mcp.json` / `.mcp.json`
+2. `omp-plugins` (90) — `.mcp.json` inside configured OMP extension packages
+3. `agent-plugins` (75) — root `mcp.json` in portable Agent Plugins
+4. `mcp-json` (5) — root `mcp.json` / `.mcp.json` fallback files
 
-Across providers, the first definition wins. Duplicate names are not merged; OpenCode's internal config layers are the exception described above. A differently named definition is also shadowed when its transport, endpoint/command inputs, auth, and request-id mode are equivalent to a higher-priority definition.
+Across providers, the first definition wins. Duplicate names are not merged. A differently named definition is also shadowed when its transport, endpoint/command inputs, auth, and request-id mode are equivalent to a higher-priority definition.
 
 Within OMP native config, project `.oyp/mcp.json` precedes `.oyp/.mcp.json`, then the active profile's user `mcp.json` and `.mcp.json`. Root fallback `mcp.json` precedes root `.mcp.json`. In practice:
 
 - prefer `.oyp/mcp.json` or the active profile's user `mcp.json` for an OMP-specific override
-- keep names and endpoint definitions unique across tools when possible
-- use the user `disabledServers` list when a third-party config keeps reintroducing an unwanted server
+- keep names and endpoint definitions unique across those files when possible
+- use the user `disabledServers` list when a plugin or root fallback file keeps reintroducing an unwanted server
 - set `mcp.enableProjectConfig: false` to exclude every project-level source before deduplication, allowing a same-named user entry to survive
 
 ## Troubleshooting
@@ -541,13 +527,13 @@ The JSON is valid, but the server may still be unreachable. Use `/mcp test <name
 
 ### The server exists in another tool's config but not in OMP
 
-Run `/mcp list`. OMP discovers many third-party MCP files, but project-level loading can also be disabled via the `mcp.enableProjectConfig` setting, and a user-level `disabledServers` entry can suppress a server by name.
+OMP does not read other tools' MCP files (`~/.claude.json`, `~/.cursor/mcp.json`, `.vscode/mcp.json`, and so on). Copy the server definition into `.oyp/mcp.json`, `~/.oyp/agent/mcp.json`, or a root `mcp.json` / `.mcp.json`, then run `/mcp reload`. If it is already in one of OMP's own sources, run `/mcp list`: project-level loading can be disabled via the `mcp.enableProjectConfig` setting, and a user-level `disabledServers` entry can suppress a server by name.
 
 ### A browser MCP server is configured but never loads
 
 OMP drops recognized browser-automation servers at config load, before any connection attempt, whenever the built-in browser prelude is callable: `browser.enabled` is true (the default), Eval is registered and active, and the session is not restricted to explicitly named tools. The filter matches servers named `playwright`, `puppeteer`, `browserbase`, `browser-tools`, `browser-use` or `browser`, stdio servers whose command or args match one of a fixed set of recognized browser-MCP package patterns (`@playwright/mcp`, `@modelcontextprotocol/server-puppeteer`, `@browserbasehq/mcp-server-browserbase`, `@agentdeskai/browser-tools-mcp`, `@agent-infra/mcp-server-browser`, `puppeteer-mcp`, `playwright-mcp`, `pptr-mcp`, `browser-use-mcp`, `mcp-browser-use`), or HTTP/SSE servers whose URL points at browserbase.com or browser-use.com. Any other package (for example `chrome-devtools-mcp` under a server name outside the list above) is not matched. This filter is separate from `disabledServers`.
 
-The drop is quiet, but not equally visible everywhere: servers from any source other than the two primary files (`~/.oyp/agent/mcp.json` and `.oyp/mcp.json`) never reach `/mcp list`. Third-party configs, root `mcp.json` / `.mcp.json` fallbacks, and servers from OMP extension packages all vanish once filtered. An entry in one of the two primary files still shows up there as `not connected`, so a missing server with a primary-file entry may have been filtered. No error or warning is recorded either way.
+The drop is quiet, but not equally visible everywhere: servers from any source other than the two primary files (`~/.oyp/agent/mcp.json` and `.oyp/mcp.json`) never reach `/mcp list`. Root `mcp.json` / `.mcp.json` fallbacks and servers from installed plugins all vanish once filtered. An entry in one of the two primary files still shows up there as `not connected`, so a missing server with a primary-file entry may have been filtered. No error or warning is recorded either way.
 
 To run a browser MCP server instead of the native browser tool, set `browser.enabled: false` in your settings. `oyp read` does not apply this filter.
 

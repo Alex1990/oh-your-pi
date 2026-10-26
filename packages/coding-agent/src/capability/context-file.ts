@@ -32,11 +32,11 @@ export interface ContextFile {
 export const contextFileCapability = defineCapability<ContextFile>({
 	id: "context-files",
 	displayName: "Context Files",
-	description: "Persistent instruction files (CLAUDE.md, AGENTS.md, etc.) that guide agent behavior",
+	description: "Persistent instruction files (AGENTS.md, etc.) that guide agent behavior",
 	// Deduplicate by scope: one user-level file, and one project-level file per directory depth.
 	// Within each depth level, higher-priority providers shadow lower-priority ones.
 	// This supports monorepo hierarchies where AGENTS.md exists at multiple ancestor levels.
-	// Clamp depth >= 0: files inside config subdirectories of an ancestor (e.g. .claude/, .github/)
+	// Clamp depth >= 0: files inside config subdirectories of an ancestor
 	// are same-scope as the ancestor itself.
 	key: file => {
 		const scope = file.level === "user" ? "user" : `project:${Math.max(0, file.depth ?? 0)}`;

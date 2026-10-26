@@ -30,15 +30,13 @@ import {
 	validateAgentSkillFrontmatter,
 } from "./agent-plugin-format";
 import { resolveContainedPath } from "./contained-path";
-import { compareSkillOrder, createSourceMeta, listClaudePluginRoots } from "./helpers";
+import { compareSkillOrder, createSourceMeta, listPluginRoots } from "./helpers";
 import { listOmpExtensionRoots } from "./omp-extension-roots";
 import { bun } from "@oh-my-pi/pi-utils/node-runtime";
 
 const PROVIDER_ID = "agent-plugins";
 const DISPLAY_NAME = "Agent Plugins";
 const DESCRIPTION = "Portable Agent Plugins packages (plugin.json, skills/, mcp.json) per agent-plugins.org";
-// Above claude-plugins (70) so the standard's semantics win for packages that
-// declare it; below claude.ts (80) so user-level .claude/ overrides still apply.
 const PRIORITY = 75;
 
 interface CandidateRoot {
@@ -60,7 +58,7 @@ interface CandidateRoot {
  */
 async function listCandidateRoots(ctx: LoadContext): Promise<CandidateRoot[]> {
 	const [marketplace, extensionRoots] = await Promise.all([
-		listClaudePluginRoots(ctx.home, ctx.cwd),
+		listPluginRoots(ctx.home, ctx.cwd),
 		listOmpExtensionRoots(ctx),
 	]);
 	const seen = new Set<string>();
@@ -287,7 +285,7 @@ async function loadPluginMCPServers(
 	for (const server of result.servers) {
 		items.push({
 			// Namespace by plugin name so servers from different plugins cannot
-			// collide in the capability registry (matches claude-plugins).
+			// collide in the capability registry.
 			name: `${manifest.name}:${server.name}`,
 			transport: server.transport,
 			...(server.command !== undefined && { command: server.command }),

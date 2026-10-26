@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "@oh-my-pi/pi-utils/test-runtime";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { clearPluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { getEnabledPlugins } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/loader";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 import { bun } from "@oh-my-pi/pi-utils/node-runtime";
@@ -11,7 +11,7 @@ const tempRoots: string[] = [];
 const restore: string[] = [];
 
 afterEach(async () => {
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 	// Cleanup needs the manifests back: a 000 file blocks its own removal.
 	for (const file of restore.splice(0)) {
 		await fs.chmod(file, 0o600).catch(() => {});

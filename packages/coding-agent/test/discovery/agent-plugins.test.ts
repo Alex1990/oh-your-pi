@@ -13,18 +13,15 @@ import {
 	parseAgentPluginMcp,
 } from "@oh-my-pi/pi-coding-agent/discovery/agent-plugin-format";
 import {
-	clearClaudePluginRootsCache,
+	clearPluginRootsCache,
 	injectPluginDirRoots,
-	listClaudePluginRoots,
+	listPluginRoots,
 } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { loadSkills } from "@oh-my-pi/pi-coding-agent/extensibility/skills";
 import { getPluginsDir, removeWithRetries } from "@oh-my-pi/pi-utils";
-import { restoreEnvValue } from "../helpers/settings-test-state";
 import "@oh-my-pi/pi-coding-agent/discovery/agent-plugins";
-import "@oh-my-pi/pi-coding-agent/discovery/claude-plugins";
 import type { MCPServer } from "@oh-my-pi/pi-coding-agent/capability/mcp";
 import type { Skill } from "@oh-my-pi/pi-coding-agent/capability/skill";
-import { bun } from "@oh-my-pi/pi-utils/node-runtime";
 
 vi.mock("node:os", { spy: true });
 
@@ -253,10 +250,9 @@ describe("parseAgentPluginMcp", () => {
 describe("agent-plugins discovery", () => {
 	let tempDir: string;
 	let pluginPath: string;
-	let originalClaudeConfigDir: string | undefined;
 
 	const writeRegistry = async (installPath: string, id = "std-plugin@market") => {
-		const pluginsDir = path.join(tempDir, ".claude", "plugins");
+		const pluginsDir = getPluginsDir(tempDir);
 		await fs.mkdir(pluginsDir, { recursive: true });
 		await fs.writeFile(
 			path.join(pluginsDir, "installed_plugins.json"),
@@ -291,12 +287,9 @@ describe("agent-plugins discovery", () => {
 	};
 
 	beforeEach(async () => {
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearAgentPluginRootCache();
 		clearFsCache();
-		originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
-		delete process.env.CLAUDE_CONFIG_DIR;
-		delete bun.env.CLAUDE_CONFIG_DIR;
 		tempDir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "agent-plugins-test-")));
 		pluginPath = path.join(tempDir, "plugins", "std-plugin");
 		await fs.mkdir(pluginPath, { recursive: true });
@@ -304,11 +297,10 @@ describe("agent-plugins discovery", () => {
 	});
 
 	afterEach(async () => {
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearAgentPluginRootCache();
 		clearFsCache();
 		vi.restoreAllMocks();
-		restoreEnvValue("CLAUDE_CONFIG_DIR", originalClaudeConfigDir);
 		await removeWithRetries(tempDir);
 	});
 
@@ -332,7 +324,7 @@ describe("agent-plugins discovery", () => {
 		const deploy = skills.all.find(skill => skill.name === "deploy");
 		expect(deploy).toBeDefined();
 		// The standard governs the package: the agent-plugins provider loads the
-		// skill and the legacy claude-plugins provider skips the root.
+		// skill and the legacy omp-plugins provider skips the root.
 		expect(deploy?._source.provider).toBe("agent-plugins");
 		// §4.1: plugin skills carry the resolved plugin root so every skill://
 		// resource access enforces realpath containment.
@@ -524,7 +516,7 @@ describe("agent-plugins discovery", () => {
 			await injectPluginDirRoots(tempDir, [dirPath], tempDir);
 			// The synthetic root takes its plugin name from the standard manifest,
 			// not the directory basename.
-			const { roots } = await listClaudePluginRoots(tempDir, tempDir);
+			const { roots } = await listPluginRoots(tempDir, tempDir);
 			expect(roots.find(root => root.path === dirPath)?.plugin).toBe("renamed-plugin");
 
 			const skills = await loadCapability<Skill>("skills", { cwd: tempDir });
@@ -550,7 +542,7 @@ describe("agent-plugins discovery", () => {
 
 		try {
 			await injectPluginDirRoots(tempDir, [dirPath], tempDir);
-			const { roots } = await listClaudePluginRoots(tempDir, tempDir);
+			const { roots } = await listPluginRoots(tempDir, tempDir);
 			expect(roots.find(root => root.path === dirPath)?.plugin).toBe("escape-dir");
 		} finally {
 			await injectPluginDirRoots(tempDir, []);
@@ -625,7 +617,7 @@ describe("agent-plugins discovery", () => {
 			});
 		await fs.writeFile(path.join(pluginPath, "mcp.json"), mcpDoc("a"));
 		await fs.writeFile(path.join(otherPath, "mcp.json"), mcpDoc("b"));
-		const pluginsDir = path.join(tempDir, ".claude", "plugins");
+		const pluginsDir = getPluginsDir(tempDir);
 		await fs.mkdir(pluginsDir, { recursive: true });
 		const entry = (installPath: string) => [
 			{
@@ -658,7 +650,7 @@ describe("agent-plugins discovery", () => {
 
 		// Stability across reloads: a fresh discovery pass maps each instance to
 		// the same directory, so persisted state survives.
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearAgentPluginRootCache();
 		clearFsCache();
 		expect(await dataDirOf("a")).toBe(first as string);
@@ -666,7 +658,7 @@ describe("agent-plugins discovery", () => {
 	});
 
 	test("namespaces colliding plugin skills by manifest name, stable across version bumps (#12151)", async () => {
-		const cacheRoot = path.join(tempDir, ".claude", "plugins", "cache", "market");
+		const cacheRoot = path.join(tempDir, "marketplace-cache", "market");
 		const install = async (plugin: string, version: string) => {
 			const root = path.join(cacheRoot, plugin, version);
 			await fs.mkdir(path.join(root, "skills", "tdd"), { recursive: true });
@@ -681,7 +673,7 @@ describe("agent-plugins discovery", () => {
 			return root;
 		};
 		const writeInstalls = async (entries: Record<string, [string, string]>) => {
-			const pluginsDir = path.join(tempDir, ".claude", "plugins");
+			const pluginsDir = getPluginsDir(tempDir);
 			await fs.mkdir(pluginsDir, { recursive: true });
 			const plugins: Record<string, unknown[]> = {};
 			for (const [id, [installPath, version]] of Object.entries(entries)) {
@@ -698,7 +690,7 @@ describe("agent-plugins discovery", () => {
 			await fs.writeFile(path.join(pluginsDir, "installed_plugins.json"), JSON.stringify({ version: 2, plugins }));
 		};
 		const tddNames = async () => {
-			clearClaudePluginRootsCache();
+			clearPluginRootsCache();
 			clearAgentPluginRootCache();
 			clearFsCache();
 			const { skills } = await loadSkills({ cwd: tempDir });

@@ -31,7 +31,7 @@ Extension loading builds an ordered list of module entry files, imports the modu
 
 ### 1) Auto-discovered native extension modules
 
-`discoverExtensionPaths()` loads the `extension-module` capability with a `providers: ["native"]` filter. Foreign extension-module providers are not scanned by this loader.
+`discoverExtensionPaths()` loads the `extension-module` capability with a `providers: ["native"]` filter.
 
 Native `extension-module` discovery comes from:
 

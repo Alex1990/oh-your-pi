@@ -2,8 +2,8 @@
  * AGENTS.md Provider
  *
  * Discovers standalone AGENTS.md files by walking up from cwd.
- * This handles AGENTS.md files that live in project root (not in config directories
- * like .codex/ or .gemini/, which are handled by their respective providers).
+ * This handles AGENTS.md files that live in project root rather than inside a
+ * config directory.
  */
 import { registerProvider } from "../capability";
 import { type ContextFile, contextFileCapability } from "../capability/context-file";

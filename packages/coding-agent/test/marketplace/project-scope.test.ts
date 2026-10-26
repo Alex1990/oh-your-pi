@@ -2,7 +2,7 @@
  * Tests for project-scope registry resolution contracts.
  *
  * resolveActiveProjectRegistryPath: walk-up, .git fallback, null return, canonical path.
- * listClaudePluginRoots: project entries shadow user entries for same plugin ID.
+ * listPluginRoots: project entries shadow user entries for same plugin ID.
  *
  * Note: helpers.ts imports @oh-my-pi/pi-natives (Rust addon via glob).
  * This file imports from helpers.ts directly — the native addon IS present in the
@@ -13,8 +13,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
-	clearClaudePluginRootsCache,
-	listClaudePluginRoots,
+	clearPluginRootsCache,
+	listPluginRoots,
 	resolveActiveProjectRegistryPath,
 	resolveOrDefaultProjectRegistryPath,
 } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
@@ -55,7 +55,7 @@ describe("resolveActiveProjectRegistryPath", () => {
 	});
 
 	afterEach(() => {
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		vi.restoreAllMocks();
 		removeSyncWithRetries(tmpDir);
 	});
@@ -330,22 +330,22 @@ describe("resolveActiveProjectRegistryPath", () => {
 		});
 
 		try {
-			const { roots } = await listClaudePluginRoots(home, cwd);
+			const { roots } = await listPluginRoots(home, cwd);
 			expect(roots.filter(root => root.id === "sample@local").map(root => root.scope)).toEqual(["user"]);
 		} finally {
-			clearClaudePluginRootsCache();
+			clearPluginRootsCache();
 		}
 	});
 });
 
-// ── listClaudePluginRoots: project shadows user ───────────────────────────────
+// ── listPluginRoots: project shadows user ───────────────────────────────
 
-describe("listClaudePluginRoots — project shadows user", () => {
+describe("listPluginRoots — project shadows user", () => {
 	let tmpHome: string;
 	let tmpProject: string;
-	/** Path where listClaudePluginRoots reads the user OMP registry. */
+	/** Path where listPluginRoots reads the user OMP registry. */
 	let userRegPath: string;
-	/** Path where listClaudePluginRoots reads the project registry (resolved from tmpProject). */
+	/** Path where listPluginRoots reads the project registry (resolved from tmpProject). */
 	let projectRegPath: string;
 
 	beforeEach(() => {
@@ -363,7 +363,7 @@ describe("listClaudePluginRoots — project shadows user", () => {
 
 	afterEach(() => {
 		// Cache is keyed by home:projectPath — must clear between tests.
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		removeSyncWithRetries(tmpHome);
 		removeSyncWithRetries(tmpProject);
 	});
@@ -381,7 +381,7 @@ describe("listClaudePluginRoots — project shadows user", () => {
 		projReg = addInstalledPlugin(projReg, pluginId, makeEntry("/project/install/shared-plugin", "project"));
 		await writeInstalledPluginsRegistry(projectRegPath, projReg);
 
-		const { roots } = await listClaudePluginRoots(tmpHome, tmpProject);
+		const { roots } = await listPluginRoots(tmpHome, tmpProject);
 		const matching = roots.filter(r => r.id === pluginId);
 
 		// Exactly one entry survives — the user entry is suppressed.

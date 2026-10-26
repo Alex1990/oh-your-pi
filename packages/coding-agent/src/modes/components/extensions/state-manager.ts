@@ -37,14 +37,8 @@ import {
 
 /**
  * Provider-level gate for one discovered item: the whole-provider switch, plus
- * the `~/` opt-in for user-level items of foreign tools. Item-level disable and
- * shadowing take precedence and are decided by the caller.
- *
- * Mirrors the loader's foreign gate (`allowedRoots` / `isSourceEnabled`,
- * #10666/#10743): a user-scope `claude-plugins` item whose `origin` is not the
- * foreign `~/.claude` tree is an omp-native marketplace root under
- * `~/.oyp/plugins` and loads without the opt-in — so the dashboard must render
- * it active, not a phantom `user-opt-in` disabled (#12776).
+ * the `~/` opt-in for user-level items. Item-level disable and shadowing take
+ * precedence and are decided by the caller.
  */
 function resolveState(
 	source: SourceMeta,
@@ -54,9 +48,6 @@ function resolveState(
 	if (isDisabled) return { state: "disabled", disabledReason: "item-disabled" };
 	if (isShadowed) return { state: "shadowed", disabledReason: "shadowed" };
 	if (!isProviderEnabled(source.provider)) return { state: "disabled", disabledReason: "provider-disabled" };
-	if (source.provider === "claude-plugins" && source.origin !== undefined && source.origin !== "claude") {
-		return { state: "active" };
-	}
 	if (source.level === "user" && !isUserSourceEnabled(source.provider)) {
 		return { state: "disabled", disabledReason: "user-opt-in" };
 	}
@@ -156,7 +147,7 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 	// the per-server `enabled: false` flag, and the user-level `disabledServers`
 	// denylist that `/mcp disable` writes through `setServerDisabled`. The
 	// user-level `enabledServers` allowlist overrides a non-writable source's
-	// `enabled: false` (e.g. opencode.json) but never the denylist.
+	// `enabled: false` (e.g. claude.json) but never the denylist.
 	try {
 		const userMcpPath = cwd ? getMCPConfigPath("user", cwd) : undefined;
 		const [mcpDisabledNames, mcpForcedEnabled] = await Promise.all([

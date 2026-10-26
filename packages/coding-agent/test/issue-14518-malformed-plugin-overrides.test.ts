@@ -2,7 +2,7 @@ import { afterEach, expect, spyOn, test } from "@oh-my-pi/pi-utils/test-runtime"
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { clearPluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { getEnabledPlugins, getPluginSettings } from "@oh-my-pi/pi-coding-agent/extensibility/plugins/loader";
 import * as piUtils from "@oh-my-pi/pi-utils";
 import { logger, removeWithRetries } from "@oh-my-pi/pi-utils";
@@ -18,7 +18,7 @@ import { bun } from "@oh-my-pi/pi-utils/node-runtime";
 const tempRoots: string[] = [];
 
 afterEach(async () => {
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 	for (const root of tempRoots.splice(0)) {
 		await removeWithRetries(root);
 	}

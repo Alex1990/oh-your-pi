@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getConfigDirPaths } from "../config";
-import { type ClaudePluginRoot, getPreloadedPluginRoots } from "../discovery/helpers";
+import { type PluginRoot, getPreloadedPluginRoots } from "../discovery/helpers";
 
 /** Turns raw file content (from `filePath`) into a config, or `null` to skip the file. */
 export type ConfigFileAdapter<T> = (content: string, filePath: string) => T | null;
@@ -29,7 +29,7 @@ export function readConfigFile<T>(filePath: string, adapt: ConfigFileAdapter<T>)
 
 export interface ConfigFileSourcesOptions<T> {
 	/** Extra source emitted right after each plugin root's config files (e.g. its marketplace catalog). */
-	pluginRootSource?: (root: ClaudePluginRoot) => ConfigFileSource<T>;
+	pluginRootSource?: (root: PluginRoot) => ConfigFileSource<T>;
 }
 
 /**

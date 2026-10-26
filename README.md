@@ -209,9 +209,9 @@ The agent remembers your codebase between sessions. It writes facts mid-run with
 
 Run oyp inside Zed and you get the same agent you drive from the terminal — reading the buffer you're actually looking at, writing through the editor's save path, spawning shells in the editor's terminal. Destructive tools pause for a permission prompt you can answer once and forget. No bridge, no plugin, no second brain to keep in sync.
 
-### 15 · Inherits what your other tools already wrote
+### 15 · Inherits what's already on disk
 
-Every other agent ships an importer and expects you to convert. oyp reads the eight formats already on disk in their native shape — Cursor MDC, Cline .clinerules, Codex AGENTS.md, Copilot applyTo, and the rest. No migration script, no YAML-to-TOML port, no "supported subset" footnotes. The config your team wrote last quarter still works tonight.
+Your rules, skills, and MCP servers already have a home. oyp reads them where they are — a user-level `~/.oyp`, a project `.oyp`, `.agent` / `.agents` directories, standalone `AGENTS.md` files, `mcp.json`, and installed plugin packages. Nothing to convert, nothing to keep in sync, no "supported subset" footnotes. The config your team wrote last quarter still works tonight.
 
 ### 16 · oyp commit: atomic splits, validated messages
 
@@ -561,7 +561,7 @@ An extension is a TypeScript module. Same tool API, same slash-command registry,
 
 ### Discovery
 
-On first run oyp inherits whatever is already on disk: rules, skills, and MCP servers from `.claude`, `.cursor`, `.windsurf`, `.gemini`, `.codex`, `.cline`, `.github/copilot`, and `.vscode`. No migration script.
+On first run oyp picks up the rules, skills, and MCP servers already on disk: a user-level `~/.oyp`, a project `.oyp`, `.agent` / `.agents` directories, standalone `AGENTS.md` files, `mcp.json`, and installed plugin packages. No migration script.
 
 ### Extensibility
 

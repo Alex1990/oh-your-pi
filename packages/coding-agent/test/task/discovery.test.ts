@@ -9,7 +9,7 @@ import {
 	clearOmpExtensionCliRoots,
 	injectOmpExtensionCliRoots,
 } from "@oh-my-pi/pi-coding-agent/discovery/omp-extension-roots";
-import { clearClaudePluginRootsCache, injectPluginDirRoots } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { clearPluginRootsCache, injectPluginDirRoots } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { discoverAgents } from "@oh-my-pi/pi-coding-agent/task/discovery";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
 
@@ -64,8 +64,8 @@ function agentMd(name: string, model: string): string {
 }
 
 // Register an omp-installed marketplace plugin via the OMP plugin registry
-// (`~/.oyp/plugins/installed_plugins.json`), the path listClaudePluginRoots
-// reads as origin "omp" — distinct from the node_modules path above. `manifest`
+// (`~/.oyp/plugins/installed_plugins.json`), the path listPluginRoots
+// reads as origin "oyp" — distinct from the node_modules path above. `manifest`
 // controls the declared plugin dialect: `.omp-plugin/plugin.json` (OMP-native),
 // `.claude-plugin/plugin.json` (Claude Code), `both` (OMP wins by precedence),
 // or `none` (bare directory).
@@ -130,7 +130,7 @@ describe("discoverAgents", () => {
 		enableProvider("omp-plugins");
 		clearOmpExtensionCliRoots();
 		await injectPluginDirRoots(tempHome, []);
-		clearClaudePluginRootsCache();
+		clearPluginRootsCache();
 		clearAgentPluginRootCache();
 		clearFsCache();
 		await removeWithRetries(tempHome);
@@ -234,10 +234,9 @@ describe("discoverAgents", () => {
 		expect(names).not.toEqual(expect.arrayContaining(["stale-agent", "settings-agent", "loom-verify-spec"]));
 	});
 
-	test("discovers agents from a --plugin-dir root with the foreign claude-plugins opt-in off (#11151)", async () => {
+	test("discovers agents from a --plugin-dir root (#11151)", async () => {
 		// `--plugin-dir` roots ride the shared plugin registry as user-scope, origin
-		// "plugin-dir" entries. The claude-plugins foreign opt-in is off by default, so
-		// gating user-scope roots purely on scope (as before) dropped these agents.
+		// "plugin-dir" entries, and load without any foreign opt-in gate.
 		const pluginDir = path.join(tempHome, "my-plugin");
 		await fs.mkdir(path.join(pluginDir, "agents"), { recursive: true });
 		await fs.writeFile(
@@ -258,7 +257,7 @@ describe("discoverAgents", () => {
 		// omp-installed marketplace plugins ride the shared plugin registry as
 		// origin "omp" roots. An OMP-native package (no Claude manifest) uses OMP
 		// model selectors, so `model:` must survive discovery.
-		enableProvider("claude-plugins");
+		enableProvider("agent-plugins");
 		await writeOmpMarketplacePlugin(tempHome, {
 			agentName: "omp-probe",
 			model: '["@advisor", "@smol"]',
@@ -275,7 +274,7 @@ describe("discoverAgents", () => {
 	test("drops model frontmatter of a Claude-format plugin installed via the OMP registry (#12031 review)", async () => {
 		// origin "omp" but a `.claude-plugin` package: its `model: sonnet` is a
 		// Claude alias, not an OMP selector, so it must still be stripped.
-		enableProvider("claude-plugins");
+		enableProvider("agent-plugins");
 		await writeOmpMarketplacePlugin(tempHome, {
 			agentName: "claude-probe",
 			model: "sonnet",
@@ -292,7 +291,7 @@ describe("discoverAgents", () => {
 	test("honors model frontmatter when a plugin declares both OMP and Claude manifests (#12031 review)", async () => {
 		// `.omp-plugin/plugin.json` wins over a sibling `.claude-plugin/plugin.json`,
 		// mirroring the MCP-config precedence, so OMP selectors survive.
-		enableProvider("claude-plugins");
+		enableProvider("agent-plugins");
 		await writeOmpMarketplacePlugin(tempHome, {
 			agentName: "hybrid-probe",
 			model: '["@advisor", "@smol"]',

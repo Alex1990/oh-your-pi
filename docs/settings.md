@@ -27,7 +27,7 @@ The global paths above describe the default profile. `oyp --profile work` select
 
 On Linux and macOS, configured `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` can redirect data/state/cache when the corresponding `oyp` directories exist. Named profiles require the corresponding `oyp/profiles/<name>` directory. This does not move `config.yml`: it stays under the active agent directory, while `agent.db` and other categorized data may live elsewhere. `oyp config init-xdg` creates the base directories but does not migrate files or set environment variables.
 
-Native project settings are intentionally scoped to the process working directory's `.oyp/` folder — settings discovery does **not** walk ancestor directories looking for the nearest `.oyp/`. Other discovery providers (Claude, Codex, Gemini, Cursor, OpenCode) can also contribute project-level settings from their own files; those are read-only from `oyp` settings commands and can be turned off by provider id (see [Provider and source disabling](#provider-and-source-disabling)).
+Native project settings are intentionally scoped to the process working directory's `.oyp/` folder — settings discovery does **not** walk ancestor directories looking for the nearest `.oyp/`, and no other discovery source contributes project-level settings.
 
 ## Config file formats
 
@@ -122,7 +122,7 @@ From highest to lowest:
 1. **Setting env var** — an environment variable declared on the setting's definition (for example `PI_PY` for `eval.py`, `OMP_AUTH_BROKER_URL` for `auth.broker.url`). Parsed by the setting's type unless it declares a custom parser; unparseable text (such as `PI_EDIT_VARIANT=auto`) counts as unset. Booleans follow the `parseFlag` convention: empty counts as unset, `1`/`y`/`true`/`yes`/`on` (all-lowercase or all-uppercase) mean true, and any other value means false. A few are declared as fallbacks instead (`SEARXNG_*`, `MNEMOPI_EMBEDDING_MODEL`): they only replace the built-in default, so any configured layer wins over them — except a configured `null`, which counts as unset. `SEARXNG_ENDPOINT`, `SEARXNG_TOKEN`, and `MNEMOPI_EMBEDDING_MODEL` also apply when the setting is a blank string.
 2. **Runtime overrides** — settings applied in memory for the current process, including `--smol`, `--slow`, `--plan`, `--approval-mode`, `--auto-approve`/`--yolo`, `--hide-thinking`, `--advisor`, `--external-thinking`, and protocol-mode defaults. Never persisted. Other one-shot options such as `--model`, `--thinking`, `--service-tier`, `--no-lsp`, `--no-pty`, and `--api-key` affect session/model/transport options rather than all being registry settings. Protocol-mode defaults (RPC/ACP) hold only while nothing else configures the setting: a settings write or reset of it, a `config.yml` or project edit picked up by a reload, or an ACP session's own project config replaces them.
 3. **CLI config overlays** — each `--config <file>`; later overlay files override earlier ones.
-4. **Project settings** — `<cwd>/.oyp/settings.json` then `<cwd>/.oyp/config.yml` (and contributions from other discovery providers at project level).
+4. **Project settings** — `<cwd>/.oyp/settings.json` then `<cwd>/.oyp/config.yml`.
 5. **Global settings** — the active agent/profile directory's `config.yml` (or existing `config.yaml`).
 6. **Built-in defaults** — from the setting definition.
 
@@ -341,18 +341,16 @@ Only string values are kept; malformed scoped entries are ignored. Path scoping 
 
 ## Provider and source disabling
 
-`enabledProviders` opts foreign user-level configuration sources into discovery. Its default is empty, so user roots from Cursor, Codex, Claude, Claude marketplace plugins, Gemini, OpenCode, Windsurf, and GitHub are normally excluded until their provider id is listed (or `*`/`all` is listed). Enabling `claude` also enables `claude-plugins`; an explicit `CLAUDE_CONFIG_DIR` opts Claude's user root in without a list entry. Explicitly selected discovery roots can also opt in. `disabledProviders` still wins.
-
-Project roots remain enabled. Native OMP and `.agents` roots—including native marketplace plugins—are not foreign and do not require an entry.
+`enabledProviders` remains a recognized setting, but no discovery source is foreign anymore, so it no longer changes what loads: every remaining source is enabled by default. `disabledProviders` still wins.
 
 `disabledProviders` is a single shared id namespace that gates two different subsystems, before any credential check:
 
 | Entry kind        | Example ids                                                                        | Effect                                                                                                                                                         |
 | ----------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Model providers   | `anthropic`, `openai`, `google`, `groq`, `ollama`, `openrouter`                    | Removes those backends from model selection, even when credentials are available. See [Providers](./providers.md).                                             |
-| Discovery sources | `native`, `claude`, `codex`, `gemini`, `github`, `opencode`, `cursor`, `agents-md` | Stops that source from contributing context files, MCP servers, commands, skills, hooks, tools, prompts, or settings. See [Context files](./context-files.md). |
+| Discovery sources | `native`, `omp-plugins`, `agent-plugins`, `agents`, `agents-md`, `custom-context` | Stops that source from contributing context files, MCP servers, commands, skills, hooks, tools, prompts, or settings. See [Context files](./context-files.md). |
 
-Most provider-control use cases list model provider ids. Disabling the `claude` discovery source is different from disabling the `anthropic` model provider — one stops Claude-format config discovery, the other stops the Anthropic model backend.
+Most provider-control use cases list model provider ids. Disabling the `agents-md` discovery source is different from disabling the `anthropic` model provider — one stops `AGENTS.md` discovery, the other stops the Anthropic model backend.
 
 Because arrays replace rather than append, a project that sets `disabledProviders` must list the complete desired set:
 
@@ -451,7 +449,7 @@ Existing configs are migrated automatically when loaded. Retired backend selecto
 | `modelProviderOrder`   | array   | `[]`                        | Preferred provider order when a model id is ambiguous.                                                                                                                                                                                                                                                                                                                                                           |
 | `cycleOrder`           | array   | `["smol","default","slow"]` | Chat roles cycled by the model switcher.                                                                                                                                                                                                                                                                                                                                                                         |
 | `enabledModels`        | array   | `[]`                        | Allow-list of models; supports [path-scoped entries](#path-scoped-arrays). Empty means all available models.                                                                                                                                                                                                                                                                                                     |
-| `enabledProviders`     | array   | `[]`                        | Foreign user-level discovery sources to load; supports path-scoped entries. See [above](#provider-and-source-disabling).                                                                                                                                                                                                                                                                                          |
+| `enabledProviders`     | array   | `[]`                        | Retained for compatibility; no discovery source is foreign, so it does not change what loads. Supports path-scoped entries. See [above](#provider-and-source-disabling).                                                                                                                                                                            |
 | `disabledProviders`    | array   | `[]`                        | Disabled model/discovery providers; supports [path-scoped entries](#path-scoped-arrays). See [above](#provider-and-source-disabling).                                                                                                                                                                                                                                                                             |
 | `includeModelInPrompt` | boolean | `true`                      | Include the active model name in the system prompt.                                                                                                                                                                                                                                                                                                                                                              |
 
@@ -1075,7 +1073,7 @@ Arrays replace; they do not append. If a project sets `disabledProviders`, `enab
 
 ### A provider is still available after editing config
 
-- Check whether you disabled the model provider id (e.g. `anthropic`) or a discovery source id (e.g. `claude`) — they are different ids in the shared `disabledProviders` namespace, with different effects.
+- Check whether you disabled the model provider id (e.g. `anthropic`) or a discovery source id (e.g. `agents-md`) — they are different ids in the shared `disabledProviders` namespace, with different effects.
 - Check for a project (or overlay) `disabledProviders` array replacing your global one.
 - Credentials can still come from environment variables, `.env`, OAuth, stored auth, or `models.yml`; disabling a provider blocks selection regardless, but verify you edited the right layer. See [Providers](./providers.md).
 - Check for a warning that a live reload retained the last good layer. Provider-source switches affect the next discovery pass; an already-open catalog/picker may need refreshing.

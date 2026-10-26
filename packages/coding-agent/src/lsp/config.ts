@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { $which, isRecord, logger, pathIsWithin, type WhichOptions } from "@oh-my-pi/pi-utils";
 import { YAML } from "@oh-my-pi/pi-utils/node-runtime";
-import type { ClaudePluginRoot } from "../discovery/helpers";
+import type { PluginRoot } from "../discovery/helpers";
 import {
 	type ConfigFileAdapter,
 	type ConfigFileSource,
@@ -364,7 +364,7 @@ function selectTypescriptServer(servers: Record<string, ServerConfig>): void {
 	}
 }
 
-function readMarketplaceLspConfig(root: ClaudePluginRoot): NormalizedConfig | null {
+function readMarketplaceLspConfig(root: PluginRoot): NormalizedConfig | null {
 	const catalogPaths = [
 		path.resolve(root.path, "..", "..", "marketplace.json"),
 		path.resolve(root.path, "..", "..", ".claude-plugin", "marketplace.json"),
@@ -395,7 +395,7 @@ function readMarketplaceLspConfig(root: ClaudePluginRoot): NormalizedConfig | nu
 	return null;
 }
 
-function marketplaceConfigSource(root: ClaudePluginRoot): ConfigFileSource<NormalizedConfig> {
+function marketplaceConfigSource(root: PluginRoot): ConfigFileSource<NormalizedConfig> {
 	return {
 		read: () => readMarketplaceLspConfig(root),
 	};

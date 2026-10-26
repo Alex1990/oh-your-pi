@@ -2,9 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, spyOn } from "@o
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { disableUserSource, enableUserSource } from "@oh-my-pi/pi-coding-agent/capability";
-import { type Skill as CapabilitySkill, skillCapability } from "@oh-my-pi/pi-coding-agent/capability/skill";
-import { getCapability } from "@oh-my-pi/pi-coding-agent/discovery";
 import { getWslWindowsHomeCandidate, runHostProbe } from "@oh-my-pi/pi-coding-agent/discovery/agents";
 import {
 	type LoadSkillsResult,
@@ -41,9 +38,6 @@ const expectedFixtureSkillOrder: string[] = [
  * installs out of every assertion.
  */
 const DISABLE_ALL_BUILTIN_SKILLS = {
-	enableCodexUser: false,
-	enableClaudeUser: false,
-	enableClaudeProject: false,
 	enablePiUser: false,
 	enablePiProject: false,
 	enableAgentsUser: false,
@@ -161,44 +155,6 @@ describe("skills", () => {
 			expect(skills.map(s => s.name)).toEqual(expectedFixtureSkillOrder);
 		});
 
-		it("should keep user Claude skills when project .claude/skills is missing", async () => {
-			const originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR;
-			delete process.env.CLAUDE_CONFIG_DIR;
-			delete bun.env.CLAUDE_CONFIG_DIR;
-			const tempHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-claude-home-"));
-			const tempProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-claude-project-"));
-			enableUserSource("claude");
-
-			try {
-				const userSkillDir = path.join(tempHomeDir, ".claude", "skills", "user-only-skill");
-				await fs.mkdir(userSkillDir, { recursive: true });
-				await fs.writeFile(
-					path.join(userSkillDir, "SKILL.md"),
-					[
-						"---",
-						"name: user-only-skill",
-						"description: User-only Claude skill",
-						"---",
-						"",
-						"# User-only skill",
-					].join("\n"),
-				);
-
-				const capability = getCapability<CapabilitySkill>(skillCapability.id);
-				expect(capability).toBeDefined();
-				const claudeProvider = capability?.providers.find(provider => provider.id === "claude");
-				expect(claudeProvider).toBeDefined();
-
-				const result = await claudeProvider!.load({ cwd: tempProjectDir, home: tempHomeDir, repoRoot: null });
-				expect(result.items.some(skill => skill.name === "user-only-skill" && skill.level === "user")).toBe(true);
-			} finally {
-				disableUserSource("claude");
-				restoreEnvValue("CLAUDE_CONFIG_DIR", originalClaudeConfigDir);
-				await removeWithRetries(tempProjectDir);
-				await removeWithRetries(tempHomeDir);
-			}
-		});
-
 		// Regression for issue #2401: a user who disables the named third-party
 		// CLI toggles (codex/claude/native) MUST still see skills from the
 		// canonical OMP-native `~/.agent[s]/skills` (the `agents` provider).
@@ -216,9 +172,6 @@ describe("skills", () => {
 			const homedirSpy = spyOn(os, "homedir").mockReturnValue(tempHome);
 			try {
 				const { skills } = await loadSkills({
-					enableCodexUser: false,
-					enableClaudeUser: false,
-					enableClaudeProject: false,
 					enablePiUser: false,
 					enablePiProject: false,
 					// enableAgentsUser/enableAgentsProject left at their default-true value
@@ -255,9 +208,6 @@ describe("skills", () => {
 				process.env.USERPROFILE = tempHostHome;
 				try {
 					const { skills } = await loadSkills({
-						enableCodexUser: false,
-						enableClaudeUser: false,
-						enableClaudeProject: false,
 						enablePiUser: false,
 						enablePiProject: false,
 						cwd: tempCwd,
@@ -335,40 +285,6 @@ describe("skills", () => {
 					cwd: tempCwd,
 				});
 				expect(skills.some(s => s.name === "opted-out")).toBe(false);
-			} finally {
-				homedirSpy.mockRestore();
-				await removeWithRetries(tempHome);
-				await removeWithRetries(tempCwd);
-			}
-		});
-
-		// Regression for PR #2405 review: the fall-through gate used by
-		// unknown third-party providers (opencode/github/claude-plugins/...)
-		// MUST NOT consider the OMP-native `enableAgentsUser`/`...Project`
-		// toggles. Otherwise a user who disables Codex/Claude/Pi to silence
-		// third-party CLI noise but keeps the default agents toggles on still
-		// sees opencode skills resurface via the fallback branch.
-		it("does not re-enable third-party providers via the agents toggles (PR #2405)", async () => {
-			const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-opencode-home-"));
-			const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "pi-opencode-cwd-"));
-			const opencodeSkillDir = path.join(tempHome, ".config", "opencode", "skills", "leaked-opencode");
-			await fs.mkdir(opencodeSkillDir, { recursive: true });
-			await fs.writeFile(
-				path.join(opencodeSkillDir, "SKILL.md"),
-				["---", "description: Should be filtered by third-party gate", "---", "", "# leaked-opencode"].join("\n"),
-			);
-			const homedirSpy = spyOn(os, "homedir").mockReturnValue(tempHome);
-			try {
-				const { skills } = await loadSkills({
-					enableCodexUser: false,
-					enableClaudeUser: false,
-					enableClaudeProject: false,
-					enablePiUser: false,
-					enablePiProject: false,
-					// enableAgentsUser / enableAgentsProject default true
-					cwd: tempCwd,
-				});
-				expect(skills.some(s => s.name === "leaked-opencode")).toBe(false);
 			} finally {
 				homedirSpy.mockRestore();
 				await removeWithRetries(tempHome);
@@ -598,52 +514,43 @@ describe("collision handling", () => {
 		expect(nested.content).toContain("Calendar (Second)");
 	});
 
-	/** Project with `.claude/skills/calendar` (priority 80) and `.agents/skills/calendar` (priority 70) copied from fixtures. */
-	async function projectWithProviderCopies(claudeFrom: string, agentsFrom: string | undefined) {
+	/** Project with `.agents/skills/calendar` (priority 70) copied from a fixture. */
+	async function projectWithProviderCopy(agentsFrom: string) {
 		const project = await fs.mkdtemp(path.join(os.tmpdir(), "skills-provider-copies-"));
-		const claudeFile = path.join(project, ".claude", "skills", "calendar", "SKILL.md");
-		await fs.mkdir(path.dirname(claudeFile), { recursive: true });
-		await fs.copyFile(claudeFrom, claudeFile);
-		let agentsFile: string | undefined;
-		if (agentsFrom) {
-			agentsFile = path.join(project, ".agents", "skills", "calendar", "SKILL.md");
-			await fs.mkdir(path.dirname(agentsFile), { recursive: true });
-			await fs.copyFile(agentsFrom, agentsFile);
-		}
-		return { project, claudeFile, agentsFile };
+		const agentsFile = path.join(project, ".agents", "skills", "calendar", "SKILL.md");
+		await fs.mkdir(path.dirname(agentsFile), { recursive: true });
+		await fs.copyFile(agentsFrom, agentsFile);
+		return { project, agentsFile };
 	}
-	const providerOptions = { ...DISABLE_ALL_BUILTIN_SKILLS, enableClaudeProject: true, enableAgentsProject: true };
+	const providerOptions = { ...DISABLE_ALL_BUILTIN_SKILLS, enableAgentsProject: true };
 
 	it("lets a custom override that matches a namespaced provider alias take the bare name", async () => {
-		// .claude (A) holds the bare name, .agents (B) is namespaced, and the custom
-		// override is byte-identical to B: it must still override A (#7190), and B's
-		// alias is redundant once the override carries the same content.
-		const { project, claudeFile } = await projectWithProviderCopies(
-			path.join(first, "calendar", "SKILL.md"),
-			path.join(second, "calendar", "SKILL.md"),
-		);
+		// `.agents` (B) is namespaced and the custom override is byte-identical
+		// to it: the override takes the bare name (#7190), and B's alias is
+		// redundant once the override carries the same content.
+		const { project, agentsFile } = await projectWithProviderCopy(path.join(second, "calendar", "SKILL.md"));
 		try {
 			const { skills, warnings } = await loadSkills({
 				...providerOptions,
 				cwd: project,
 				customDirectories: [second],
 			});
-			expect(skills.map(skill => skill.name).sort()).toEqual(["calendar", "claude/calendar"]);
+			expect(skills.map(skill => skill.name).sort()).toEqual(["agents/calendar", "calendar"]);
 			expect(skills.find(skill => skill.name === "calendar")?.filePath).toBe(
 				path.join(second, "calendar", "SKILL.md"),
 			);
-			expect(skills.find(skill => skill.name === "claude/calendar")?.filePath).toBe(claudeFile);
+			expect(skills.find(skill => skill.name === "agents/calendar")?.filePath).toBe(agentsFile);
 			// Only the displacement is reported; the dropped alias's own warning is retracted.
 			const collision = warnings.filter(warning => warning.message.includes("name collision"));
 			expect(collision).toHaveLength(1);
-			expect(collision[0].message).toContain('available as "claude/calendar"');
+			expect(collision[0].message).toContain('available as "agents/calendar"');
 		} finally {
 			await removeWithRetries(project);
 		}
 	});
 
 	it("drops a provider skill identical to a custom override instead of re-admitting it", async () => {
-		const { project } = await projectWithProviderCopies(path.join(first, "calendar", "SKILL.md"), undefined);
+		const { project } = await projectWithProviderCopy(path.join(first, "calendar", "SKILL.md"));
 		try {
 			const { skills, warnings } = await loadSkills({
 				...providerOptions,
@@ -846,32 +753,32 @@ describe("collision handling", () => {
 	it("lets a custom-directory skill override a provider skill and keeps a taken namespaced slot suffixed", async () => {
 		const project = await fs.mkdtemp(path.join(os.tmpdir(), "skills-displaced-"));
 		try {
-			// Project-level .claude/skills/calendar (provider "claude"; the dotted
+			// Project-level .agents/skills/calendar (provider "agents"; the dotted
 			// home makes its namespace fall back to the provider id) versus a custom
-			// root literally named "claude" that derives the same namespace.
-			const providerDir = path.join(project, ".claude", "skills", "calendar");
-			const claudeRoot = path.join(project, "x", "claude");
+			// root literally named "agents" that derives the same namespace.
+			const providerDir = path.join(project, ".agents", "skills", "calendar");
+			const agentsRoot = path.join(project, "x", "agents");
 			await fs.mkdir(providerDir, { recursive: true });
-			await fs.mkdir(path.join(claudeRoot, "calendar"), { recursive: true });
+			await fs.mkdir(path.join(agentsRoot, "calendar"), { recursive: true });
 			await fs.copyFile(path.join(first, "calendar", "SKILL.md"), path.join(providerDir, "SKILL.md"));
 			await fs.copyFile(
 				path.join(collisionFixturesDir, "nested", "second", "calendar", "SKILL.md"),
-				path.join(claudeRoot, "calendar", "SKILL.md"),
+				path.join(agentsRoot, "calendar", "SKILL.md"),
 			);
 			const { skills } = await loadSkills({
 				...DISABLE_ALL_BUILTIN_SKILLS,
-				enableClaudeProject: true,
+				enableAgentsProject: true,
 				cwd: project,
-				customDirectories: [second, claudeRoot],
+				customDirectories: [second, agentsRoot],
 			});
 			const byName = new Map(skills.map(skill => [skill.name, skill]));
 			// `second` (custom) is admitted first and overrides the provider skill
-			// onto "claude/calendar" (#7190). `claudeRoot` (also custom, its own
-			// namespace happens to be "claude" too) then collides with that taken
+			// onto "agents/calendar" (#7190). `agentsRoot` (also custom, its own
+			// namespace happens to be "agents" too) then collides with that taken
 			// slot and falls back to the `~2` suffix.
 			expect(byName.get("calendar")?.filePath).toBe(path.join(second, "calendar", "SKILL.md"));
-			expect(byName.get("claude/calendar")?.filePath).toBe(path.join(providerDir, "SKILL.md"));
-			expect(byName.get("claude/calendar~2")?.filePath).toBe(path.join(claudeRoot, "calendar", "SKILL.md"));
+			expect(byName.get("agents/calendar")?.filePath).toBe(path.join(providerDir, "SKILL.md"));
+			expect(byName.get("agents/calendar~2")?.filePath).toBe(path.join(agentsRoot, "calendar", "SKILL.md"));
 			expect(skills).toHaveLength(3);
 		} finally {
 			await removeWithRetries(project);

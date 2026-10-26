@@ -2,7 +2,7 @@ import { afterEach, expect, mock, spyOn, test } from "@oh-my-pi/pi-utils/test-ru
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { clearClaudePluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import { clearPluginRootsCache } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import {
 	__resetLegacyPiResolutionCache,
 	__rewriteLegacyExtensionSourceForTests,
@@ -15,7 +15,7 @@ const tempRoots: string[] = [];
 
 afterEach(async () => {
 	__resetLegacyPiResolutionCache();
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 	mock.restore();
 	for (const root of tempRoots.splice(0)) {
 		await removeWithRetries(root);
@@ -57,7 +57,7 @@ test("getEnabledPlugins caches repeated discovery for the same cwd and home unti
 	expect(firstPlugin?.version).toBe("1.0.0");
 	expect(cachedPlugin?.version).toBe("1.0.0");
 
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 	const [refreshedPlugin] = await getEnabledPlugins(cwd, { home });
 
 	expect(refreshedPlugin?.version).toBe("2.0.0");
@@ -87,7 +87,7 @@ test("legacy bare dependency rewrites cache fallback package resolution until pl
 	expect(firstRewrite).toContain("index.js");
 	expect(cachedRewrite).toBe(firstRewrite);
 
-	clearClaudePluginRootsCache();
+	clearPluginRootsCache();
 	const refreshedRewrite = await __rewriteLegacyExtensionSourceForTests('import leftPad from "left-pad";', importer);
 
 	expect(refreshedRewrite).toContain("alt.js");

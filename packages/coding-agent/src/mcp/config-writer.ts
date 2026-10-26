@@ -300,7 +300,7 @@ export interface SetMcpServerEnabledOptions {
 	/**
 	 * Absolute path to the loaded row's source mcp.json. Provide ONLY for
 	 * formats this codebase owns (native `.oyp/mcp.json` and `mcp-json`
-	 * `mcp.json`/`.mcp.json`). Tool-owned configs (opencode.json, claude.json,
+	 * `mcp.json`/`.mcp.json`). Tool-owned configs (claude.json,
 	 * settings.json …) MUST be omitted; we never mutate another tool's file.
 	 */
 	sourcePath?: string;
@@ -317,7 +317,7 @@ export interface SetMcpServerEnabledOptions {
  * - Server found in `sourcePath` (writable) → write `enabled` on that entry.
  * - Else server in project mcp.json → write `enabled` there.
  * - Else server in user mcp.json → write `enabled` there.
- * - Else (server defined in a tool-owned source like opencode.json, OR a
+ * - Else (server defined in a tool-owned source like claude.json, OR a
  *   purely discovered server):
  *   - Disable → add to the user-level `disabledServers` denylist.
  *   - Enable → add to the user-level `enabledServers` allowlist so the

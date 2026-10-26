@@ -5,7 +5,7 @@
  *   - MarketplacesRegistry: which marketplace catalogs the user has added (config)
  *   - InstalledPluginsRegistry: which plugins are installed (data, Claude Code-compatible)
  *
- * The installed registry MUST pass `parseClaudePluginsRegistry()` validation —
+ * The installed registry MUST pass `parsePluginsRegistry()` validation —
  * it uses `version: 2` (numeric) and `plugins: Record<string, ...[]>`.
  */
 
@@ -157,11 +157,11 @@ export interface MarketplaceRegistryEntry {
 }
 
 // ── Installed plugins registry ───────────────────────────────────────
-// MUST match ClaudePluginsRegistry shape for parseClaudePluginsRegistry()
+// MUST match PluginsRegistry shape for parsePluginsRegistry()
 // compatibility: `version: number`, `plugins: Record<string, entry[]>`.
 
 export interface InstalledPluginsRegistry {
-	/** MUST be 2 — parseClaudePluginsRegistry rejects non-numeric version. */
+	/** MUST be 2 — parsePluginsRegistry rejects non-numeric version. */
 	version: 2;
 	plugins: Record<string, InstalledPluginEntry[]>;
 }
