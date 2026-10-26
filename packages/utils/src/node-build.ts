@@ -31,6 +31,8 @@ export interface BuildOptions {
 	loader?: Record<string, esbuild.Loader>;
 	plugins?: BuildPlugin[];
 	naming?: string | { entry?: string; chunk?: string; asset?: string };
+	/** Overrides the JSX transform derived from tsconfig; Bun's bundler defaulted to `automatic`. */
+	jsx?: "transform" | "preserve" | "automatic";
 	throw?: boolean;
 	banner?: { js?: string; css?: string };
 	logLevel?: esbuild.LogLevel;
@@ -130,6 +132,28 @@ function importAttributePlugin(): esbuild.Plugin {
 const NODE_ESM_REQUIRE_BANNER =
 	'import { createRequire as __ompCreateRequire } from "node:module";\nconst require = __ompCreateRequire(import.meta.url);';
 
+interface EsbuildNaming {
+	/** Template handed to esbuild's `entryNames`/`chunkNames`; esbuild appends the extension itself. */
+	names: string;
+	/** Literal extension Bun's template spelled out, without the dot. */
+	extension?: string;
+}
+
+/**
+ * Bun's `naming` is a complete file name (or name template) while esbuild's
+ * `entryNames`/`chunkNames` always append `outExtension`. Translate both Bun
+ * spellings: a trailing `.[ext]` yields to esbuild's own output extension, and
+ * a literal `.js`/`.css` suffix moves into `outExtension` so "cli.js" does not
+ * become "cli.js.js".
+ */
+function toEsbuildNaming(template: string | undefined): EsbuildNaming | undefined {
+	if (template === undefined) return undefined;
+	if (template.endsWith(".[ext]")) return { names: template.slice(0, -".[ext]".length) };
+	const extension = /\.((?:m|c)?js|css)$/i.exec(template)?.[1];
+	if (extension !== undefined) return { names: template.slice(0, -(extension.length + 1)), extension };
+	return { names: template };
+}
+
 /** Bundle entrypoints with esbuild, returning Bun's `BuildOutput` shape. */
 export async function build(options: BuildOptions): Promise<BuildOutput> {
 	const minify = typeof options.minify === "object" ? true : (options.minify ?? false);
@@ -148,19 +172,14 @@ export async function build(options: BuildOptions): Promise<BuildOutput> {
 	// The repository's `BunPluginSpec` mirrors esbuild's plugin contract field for
 	// field; the cast bridges the two nominal option-bag types.
 	const plugins = options.plugins as unknown as esbuild.Plugin[] | undefined;
-	// Bun's `naming` was a complete file name; esbuild's `entryNames` is a
-	// template and appends its own extension, so a literal "cli.js" became
-	// "cli.js.js". Split the suffix into `outExtension`.
-	const literalNaming = typeof options.naming === "string" ? options.naming : undefined;
-	const namingExtension = literalNaming === undefined ? undefined : /\.((?:m|c)?js|css)$/i.exec(literalNaming)?.[1];
-	const entryNames =
-		literalNaming === undefined
-			? typeof options.naming === "object"
-				? options.naming?.entry
-				: undefined
-			: namingExtension
-				? literalNaming.slice(0, -(namingExtension.length + 1))
-				: literalNaming;
+	const entryNaming =
+		typeof options.naming === "string"
+			? toEsbuildNaming(options.naming)
+			: toEsbuildNaming(typeof options.naming === "object" ? options.naming?.entry : undefined);
+	const chunkNaming = typeof options.naming === "object" ? toEsbuildNaming(options.naming?.chunk) : undefined;
+	// `outExtension` is keyed by output kind, so a literal extension on either
+	// template applies to that kind; the entry template wins when both name one.
+	const literalExtension = entryNaming?.extension ?? chunkNaming?.extension;
 	// Without an output location esbuild still needs a configured path for CSS
 	// and other assets; point it at a scratch directory, suppress the writes, and
 	// hand the artifacts back from memory.
@@ -201,12 +220,13 @@ export async function build(options: BuildOptions): Promise<BuildOutput> {
 			external: options.external,
 			define: options.define,
 			loader: options.loader,
+			jsx: options.jsx,
 			banner,
 			// Last, so a caller's own onLoad hooks see the untouched source first.
 			plugins: [...(plugins ?? []), importAttributePlugin()],
-			entryNames,
-			outExtension: namingExtension ? { ".js": `.${namingExtension}` } : undefined,
-			chunkNames: typeof options.naming === "object" ? options.naming?.chunk : undefined,
+			entryNames: entryNaming?.names,
+			outExtension: literalExtension ? { ".js": `.${literalExtension}` } : undefined,
+			chunkNames: chunkNaming?.names,
 			assetNames: typeof options.naming === "object" ? options.naming?.asset : undefined,
 			logLevel: options.logLevel ?? "silent",
 			metafile: options.metafile ?? true,

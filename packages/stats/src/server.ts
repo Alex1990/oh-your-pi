@@ -341,7 +341,7 @@ export async function handleApi(req: Request): Promise<Response> {
 /**
  * Handle static file requests.
  */
-async function handleStatic(requestPath: string): Promise<Response> {
+export async function handleStatic(requestPath: string, staticDir = STATIC_DIR): Promise<Response> {
 	if (USE_EMBEDDED_CLIENT) {
 		const files = await getEmbeddedClientFiles();
 		const file = files.get(requestPath.slice(1)) ?? files.get("index.html");
@@ -349,17 +349,20 @@ async function handleStatic(requestPath: string): Promise<Response> {
 	}
 
 	const filePath = requestPath === "/" ? "/index.html" : requestPath;
-	const fullPath = path.join(STATIC_DIR, filePath);
+	const fullPath = path.join(staticDir, filePath);
 
 	const file = bun.file(fullPath);
 	if (await file.exists()) {
-		return new Response(file.stream());
+		// A bare stream carries no metadata, and `text/html` / `text/javascript`
+		// are load-bearing: the browser refuses module scripts served as the
+		// default `application/octet-stream`.
+		return new Response(file.stream(), { headers: { "Content-Type": file.type } });
 	}
 
 	// SPA fallback
-	const index = bun.file(path.join(STATIC_DIR, "index.html"));
+	const index = bun.file(path.join(staticDir, "index.html"));
 	if (await index.exists()) {
-		return new Response(index.stream());
+		return new Response(index.stream(), { headers: { "Content-Type": index.type } });
 	}
 
 	return new Response("Not Found", { status: 404 });

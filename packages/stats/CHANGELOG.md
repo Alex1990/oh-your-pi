@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The dashboard tab title is now `oyp stats`.
+
+### Fixed
+
+- Fixed the stats dashboard rendering a blank page: the client bundle now targets the browser, its assets keep their `index.js`/`index.css` names, and static responses carry the MIME types the browser requires.
+
 ## [18.12.0] - 2026-10-17
 
 ### Fixed

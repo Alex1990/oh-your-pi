@@ -10,6 +10,14 @@ console.log("Building dashboard client...");
 const result = await build({
 	entrypoints: ["./src/client/index.tsx"],
 	outdir: "./dist/client",
+	platform: "browser",
+	format: "esm",
+	// `tsconfig.json` here is the server config; the client's `jsx: react-jsx`
+	// lives in `tsconfig.client.json`, which esbuild never reads.
+	jsx: "automatic",
+	// Browser bundles have no `process`; React reads `process.env.NODE_ENV` at
+	// module scope, so inline it the way Bun's bundler did.
+	define: { "process.env.NODE_ENV": JSON.stringify("production") },
 	minify: true,
 	naming: "[dir]/[name].[ext]",
 });
@@ -28,7 +36,7 @@ const indexHtml = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>omp stats</title>
+    <title>oyp stats</title>
     <script>
       (function () {
         try {
