@@ -25,41 +25,41 @@ catalogs:
       specifier: 3.7.2
       version: 3.7.2
     '@oh-my-pi/omp-stats':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/omptype':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-agent-core':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-ai':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-catalog':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-coding-agent':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-mnemopi':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-natives':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-tui':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-utils':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/pi-wire':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@oh-my-pi/snapcompact':
-      specifier: 18.12.2
-      version: 18.12.2
+      specifier: 18.12.3
+      version: 18.12.3
     '@opentelemetry/api':
       specifier: ^1.9.1
       version: 1.9.1
@@ -446,6 +446,9 @@ importers:
       axe-core:
         specifier: 4.13.0
         version: 4.13.0
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
       puppeteer-core:
         specifier: 'catalog:'
         version: 25.3.0(patch_hash=6b1a58844185cd5096b7cff14012d171d01d344d4d3d2206d65975d67ed6c5d7)
@@ -594,7 +597,7 @@ importers:
     devDependencies:
       '@napi-rs/cli':
         specifier: 'catalog:'
-        version: 3.7.2(@emnapi/runtime@1.9.2)(@types/node@24.19.2)
+        version: 3.7.2(@emnapi/runtime@1.11.2)(@types/node@24.19.2)
       '@oh-my-pi/pi-utils':
         specifier: 'catalog:'
         version: link:../utils
@@ -5420,7 +5423,7 @@ snapshots:
   '@koromix/koffi-win32-x64@3.3.3':
     optional: true
 
-  '@napi-rs/cli@3.7.2(@emnapi/runtime@1.9.2)(@types/node@24.19.2)':
+  '@napi-rs/cli@3.7.2(@emnapi/runtime@1.11.2)(@types/node@24.19.2)':
     dependencies:
       '@inquirer/prompts': 8.7.3(@types/node@24.19.2)
       '@napi-rs/cross-toolchain': 1.0.3
@@ -5435,7 +5438,7 @@ snapshots:
       semver: 7.8.5
       typanion: 3.14.0
     optionalDependencies:
-      '@emnapi/runtime': 1.9.2
+      '@emnapi/runtime': 1.11.2
     transitivePeerDependencies:
       - '@napi-rs/cross-toolchain-arm64-target-aarch64'
       - '@napi-rs/cross-toolchain-arm64-target-armv7'

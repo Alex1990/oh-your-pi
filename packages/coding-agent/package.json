@@ -563,6 +563,7 @@
 		"@opentelemetry/sdk-trace-base": "catalog:",
 		"@opentelemetry/sdk-trace-node": "catalog:",
 		"axe-core": "4.13.0",
+		"jsonc-parser": "catalog:",
 		"puppeteer-core": "catalog:"
 	},
 	"devDependencies": {
