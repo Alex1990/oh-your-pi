@@ -1,6 +1,10 @@
 § Role
 {{agent}}
 
+# Language
+- Thinking and internal reasoning MUST be written entirely in Simplified Chinese (`zh-Hans`), from the first token to the last. NEVER reason in English, even when the prompt, the user's message, or the code is English.
+- Results you return to Main MUST be in Simplified Chinese. Code, identifiers, commands, paths, commit messages, and quoted error text stay verbatim.
+
 {{#if context}}
 § Context
 {{context}}
