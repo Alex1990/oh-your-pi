@@ -4,10 +4,12 @@ import {
 	ensureRuntimeInstalled,
 	getFastembedRuntimeDir,
 	installRuntimeModuleResolver,
+	isEnoent,
 	logger,
 	type RuntimeInstallSpec,
 	resolveRuntimeModule,
 } from "@oh-my-pi/pi-utils";
+import { bun, Glob } from "@oh-my-pi/pi-utils/node-runtime";
 import type * as Fastembed from "fastembed";
 import packageManifest from "../../package.json" with { type: "json" };
 
@@ -131,18 +133,47 @@ export function loadFastembed(): Promise<FastembedModule> {
 async function loadFastembedOnce(): Promise<FastembedModule> {
 	try {
 		const requireDirect = createRequire(import.meta.url);
-		const manifestPath = requireDirect.resolve("fastembed/package.json");
-		const manifest: { version?: unknown } = requireDirect(manifestPath);
+		const entry = requireDirect.resolve("fastembed");
+		const { packageDir, manifest } = await resolveFastembedPackage(entry);
 		if (manifest.version !== FASTEMBED_SPEC) {
 			throw new Error(`Cannot find package fastembed@${FASTEMBED_SPEC}; resolved ${String(manifest.version)}`);
 		}
-		return await loadResolvedFastembed(requireDirect.resolve("fastembed"), path.dirname(manifestPath));
+		return await loadResolvedFastembed(entry, packageDir);
 	} catch (error) {
 		if (!isRecoverableFastembedLoadError(error)) throw error;
 		logger.debug("mnemopi: fastembed not loadable, using on-demand runtime install", {
 			error: String(error),
 		});
 		return loadFromRuntimeInstall();
+	}
+}
+
+/**
+ * Locate fastembed's package root from its exported entry point.
+ *
+ * `createRequire(...).resolve("fastembed/package.json")` throws
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED`: fastembed's `exports` map exposes only the
+ * package root, and Node (unlike Bun) enforces exports for subpaths, so the
+ * manifest is unreachable through the resolver. The resolved entry always
+ * lives inside the package, so walk up to the nearest manifest named
+ * `fastembed` instead.
+ */
+export async function resolveFastembedPackage(
+	entry: string,
+): Promise<{ packageDir: string; manifest: { version?: unknown } }> {
+	let packageDir = path.dirname(entry);
+	for (;;) {
+		try {
+			const manifest: { name?: unknown; version?: unknown } = await bun
+				.file(path.join(packageDir, "package.json"))
+				.json();
+			if (manifest.name === "fastembed") return { packageDir, manifest };
+		} catch (error) {
+			if (!isEnoent(error)) throw error;
+		}
+		const parent = path.dirname(packageDir);
+		if (parent === packageDir) throw new Error(`Cannot find package fastembed above ${entry}`);
+		packageDir = parent;
 	}
 }
 
@@ -181,5 +212,3 @@ function isRecoverableFastembedLoadError(error: unknown): boolean {
 	if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || code === "ERR_DLOPEN_FAILED") return true;
 	return typeof message === "string" && /cannot find (module|package)/i.test(message);
 }
-import { bun } from "@oh-my-pi/pi-utils/node-runtime";
-import { Glob } from "@oh-my-pi/pi-utils/node-runtime";

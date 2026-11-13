@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed local embeddings failing to load with `ERR_PACKAGE_PATH_NOT_EXPORTED` because fastembed's hidden `package.json` subpath was resolved through Node's exports map; the package root is now located from fastembed's exported entry point.
+
 ## [18.11.2] - 2026-10-16
 
 ### Fixed

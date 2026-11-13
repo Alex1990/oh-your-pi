@@ -1,9 +1,12 @@
 import { describe, expect, test } from "@oh-my-pi/pi-utils/test-runtime";
-import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
 import packageManifest from "../package.json" with { type: "json" };
-import { fastembedRuntimeInstallPlan, prepareWindowsFastembedRuntime } from "../src/core/fastembed-runtime";
+import {
+	fastembedRuntimeInstallPlan,
+	prepareWindowsFastembedRuntime,
+	resolveFastembedPackage,
+} from "../src/core/fastembed-runtime";
 import { bun } from "@oh-my-pi/pi-utils/node-runtime";
 
 // The fastembed peer is pinned as an exact version (not `catalog:`) because
@@ -35,19 +38,21 @@ describe("fastembed runtime version pins", () => {
 		expect(plan.versionKey).toContain("tokenizers-0.6.0");
 	});
 
+	test("resolves the fastembed root from its exported entry, not the hidden manifest subpath", async () => {
+		const requireTest = createRequire(import.meta.url);
+		const entry = requireTest.resolve("fastembed");
+		// Fastembed's `exports` map exposes only the package root, so
+		// `fastembed/package.json` throws ERR_PACKAGE_PATH_NOT_EXPORTED under Node.
+		const { packageDir, manifest } = await resolveFastembedPackage(entry);
+
+		expect(entry.startsWith(`${packageDir}${path.sep}`)).toBe(true);
+		expect(manifest.version).toBe(packageManifest.peerDependencies.fastembed);
+	});
+
 	test("Windows preload selects fastembed's ORT DLL before inherited paths", async () => {
 		const requireTest = createRequire(import.meta.url);
 		const fastembedEntry = requireTest.resolve("fastembed");
-		// Node honors `exports`, which (unlike Bun) hides `fastembed/package.json`;
-		// walk up from the resolved entry to the package root instead.
-		let fastembedPackageDir = path.dirname(fastembedEntry);
-		for (;;) {
-			const manifestPath = path.join(fastembedPackageDir, "package.json");
-			if (existsSync(manifestPath) && JSON.parse(readFileSync(manifestPath, "utf8")).name === "fastembed") break;
-			const parent = path.dirname(fastembedPackageDir);
-			if (parent === fastembedPackageDir) throw new Error(`fastembed package root not found above ${fastembedEntry}`);
-			fastembedPackageDir = parent;
-		}
+		const { packageDir: fastembedPackageDir } = await resolveFastembedPackage(fastembedEntry);
 		const inheritedPath = ["/stale-ort", "/system"].join(path.delimiter);
 		const env: NodeJS.ProcessEnv = { PATH: inheritedPath };
 		const { ortEntry, ortPackageDir, dllDir } = await prepareWindowsFastembedRuntime({
