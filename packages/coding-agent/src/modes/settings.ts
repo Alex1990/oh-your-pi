@@ -673,12 +673,12 @@ export const cfgDisplayHideToolActivity = register({
 export const cfgDisplayShowTokenUsage = register({
 	id: "display.showTokenUsage",
 	type: "boolean",
-	default: false,
+	default: true,
 	ui: {
 		tab: "appearance",
 		group: "Display",
 		label: "Show Token Usage",
-		description: "Show per-turn token usage on assistant messages",
+		description: "Show each request's token usage (input, output, cache, TTFT, and tok/s) under its assistant message",
 	},
 });
 

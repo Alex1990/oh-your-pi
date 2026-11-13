@@ -1314,16 +1314,16 @@ describe("Settings", () => {
 
 		it("invalidates cached resolved values after set, override, and clearOverride", () => {
 			const isolated = Settings.isolated();
+			const initial = cfgDisplayShowTokenUsage.get(isolated);
 
-			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(false);
-			cfgDisplayShowTokenUsage.set(isolated, true);
-			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(true);
+			cfgDisplayShowTokenUsage.set(isolated, !initial);
+			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(!initial);
 
-			cfgDisplayShowTokenUsage.override(isolated, false);
-			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(false);
+			cfgDisplayShowTokenUsage.override(isolated, initial);
+			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(initial);
 
 			cfgDisplayShowTokenUsage.clearOverride(isolated);
-			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(true);
+			expect(cfgDisplayShowTokenUsage.get(isolated)).toBe(!initial);
 		});
 
 		it("isolates mutable defaults between instances and from the schema", () => {

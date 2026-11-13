@@ -11,6 +11,7 @@
 
 - The default and subagent system prompts now require final replies and internal reasoning to be written in Simplified Chinese, with code, identifiers, commands, paths, and quoted errors kept verbatim
 - The default system prompt now identifies this CLI as `oyp` and states that `omp` is a separate upstream install whose `~/.omp`/`.omp` state it never reads, writes, or migrates
+- Per-request token usage rows (timestamp, input, output, cache read, elapsed time, TTFT, and tok/s) now show by default under each assistant message; set `display.showTokenUsage: false` to hide them
 
 ## [18.12.3] - 2026-10-23
 

@@ -1,7 +1,7 @@
 /**
- * Coverage for the per-turn prompt→yield time (bare Δ marker) in transcript usage
- * rows, gated by `display.showTurnTime` — the delta sits right after the turn's
- * timestamp and counts hooks, tool calls, and the final generation.
+ * Coverage for the per-turn prompt→yield time (clock marker) in transcript usage
+ * rows, gated by `display.showTurnTime` — the elapsed time sits after the turn's
+ * token counts and counts hooks, tool calls, and the final generation.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "@oh-my-pi/pi-utils/test-runtime";
 import * as fs from "node:fs";
@@ -40,7 +40,20 @@ const PROMPT_AT = new Date(2026, 0, 2, 3, 4, 5).getTime();
 const RESPONSE_CREATED_AT = PROMPT_AT + 30_000;
 const REQUEST_DURATION_MS = 30_000;
 const USAGE_LABEL = "4.2K";
-const TURN_ELAPSED_LABEL = "Δ 1m";
+
+/** The elapsed marker renders the theme's clock icon before the duration. */
+let TURN_ELAPSED_LABEL = "";
+let TURN_ELAPSED_ICON = "";
+
+beforeAll(async () => {
+	await initTheme();
+	TURN_ELAPSED_ICON = theme.icon.time;
+	TURN_ELAPSED_LABEL = `${TURN_ELAPSED_ICON} 1m`;
+});
+
+function countTurnElapsed(text: string): number {
+	return TURN_ELAPSED_LABEL === "" ? 0 : text.split(TURN_ELAPSED_LABEL).length - 1;
+}
 
 type AssistantFixture = Extract<AgentMessage, { role: "assistant" }>;
 
@@ -92,16 +105,15 @@ describe("formatUsageRow turn elapsed", () => {
 		await initTheme();
 	});
 
-	it("renders the bare-delta prompt→yield time right after the timestamp", () => {
+	it("renders the clock-marked prompt→yield time after the token counts", () => {
 		const row = formatUsageRow(assistantMessage().usage as Usage, REQUEST_DURATION_MS, 6_700, PROMPT_AT, 60_000);
 		expect(row.indexOf("2026-01-02 03:04:05")).toBeLessThan(row.indexOf(TURN_ELAPSED_LABEL));
 		expect(row).toContain(TURN_ELAPSED_LABEL);
-		expect(row).not.toContain(`${theme.icon.time}Δ`);
-		expect(row).toContain(`${theme.icon.time} 6.7s`);
+		expect(row).toContain("ttft 6.7s");
 	});
 
-	it("omits the delta when no elapsed is supplied", () => {
-		expect(formatUsageRow(assistantMessage().usage as Usage)).not.toContain("Δ");
+	it("omits the elapsed time when none is supplied", () => {
+		expect(formatUsageRow(assistantMessage().usage as Usage)).not.toContain(TURN_ELAPSED_ICON);
 	});
 
 	it("rounds fractional elapsed so the label never prints a raw float", () => {
@@ -114,7 +126,7 @@ describe("formatUsageRow turn elapsed", () => {
 			undefined,
 			347.28381699998863,
 		);
-		expect(row).toContain("Δ 347ms");
+		expect(row).toContain(`${TURN_ELAPSED_ICON} 347ms`);
 		expect(row).not.toContain("347.28381699998863");
 	});
 });
@@ -164,14 +176,14 @@ describe("ChatTranscriptBuilder turn elapsed", () => {
 		// gitlab-duo-style: `timestamp` stamped at request start, no provider
 		// `duration` — the session's `completedAt` stamp still yields the full span.
 		transcript.rebuild(toEntries([userMessage(), assistantMessage({ duration: undefined })]));
-		expect(renderedText(transcript.container)).toContain("Δ 1m");
+		expect(renderedText(transcript.container)).toContain(TURN_ELAPSED_LABEL);
 	});
 
 	it("shows no delta for a legacy message without the local completion stamp", () => {
 		cfgDisplayShowTurnTime.set(settings, true);
 		const transcript = builder();
 		transcript.rebuild(toEntries([userMessage(), assistantMessage({ completedAt: undefined })]));
-		expect(renderedText(transcript.container)).not.toContain("Δ");
+		expect(renderedText(transcript.container)).not.toContain(TURN_ELAPSED_ICON);
 	});
 	it("clears the prompt anchor at a developer-initiated synthetic run during replay", () => {
 		cfgDisplayShowTurnTime.set(settings, true);
@@ -185,7 +197,7 @@ describe("ChatTranscriptBuilder turn elapsed", () => {
 		transcript.rebuild(toEntries([userMessage(), assistantMessage(), developer, assistantMessage()]));
 		// Only the user turn's row carries the delta; the auto-continuation run
 		// (developer message, no user prompt) must not inherit the user anchor.
-		const occurrences = renderedText(transcript.container).match(/Δ 1m/g)?.length ?? 0;
+		const occurrences = countTurnElapsed(renderedText(transcript.container));
 		expect(occurrences).toBe(1);
 	});
 	it("keeps the prompt anchor across a persisted same-turn continuation reminder", () => {
@@ -200,7 +212,7 @@ describe("ChatTranscriptBuilder turn elapsed", () => {
 			timestamp: RESPONSE_CREATED_AT + 5_000,
 		} as unknown as AgentMessage;
 		transcript.rebuild(toEntries([userMessage(), assistantMessage(), reminder, assistantMessage()]));
-		const occurrences = renderedText(transcript.container).match(/Δ 1m/g)?.length ?? 0;
+		const occurrences = countTurnElapsed(renderedText(transcript.container));
 		expect(occurrences).toBe(2);
 	});
 	it("anchors a user-initiated continue shortcut to its own submission time", () => {
@@ -217,7 +229,7 @@ describe("ChatTranscriptBuilder turn elapsed", () => {
 			timestamp: PROMPT_AT,
 		} as unknown as AgentMessage;
 		transcript.rebuild(toEntries([continuePrompt, assistantMessage()]));
-		expect(renderedText(transcript.container)).toContain("Δ 1m");
+		expect(renderedText(transcript.container)).toContain(TURN_ELAPSED_LABEL);
 	});
 
 	it("seeds the prompt→yield delta from a user-invoked skill custom message", () => {
@@ -263,7 +275,7 @@ describe("ChatTranscriptBuilder turn elapsed", () => {
 		transcript.rebuild(toEntries([userMessage(), assistantMessage(), redirect, assistantMessage()]));
 		// The real user prompt anchors both turns; the redirect adds no reset, so
 		// the second assistant row still measures from the initiating prompt.
-		const occurrences = renderedText(transcript.container).match(/Δ 1m/g)?.length ?? 0;
+		const occurrences = countTurnElapsed(renderedText(transcript.container));
 		expect(occurrences).toBe(2);
 	});
 });
@@ -397,7 +409,7 @@ describe("focus-attach mid-turn keeps the prompt→yield delta", () => {
 		await driveAssistantTurn(controller, assistantMessage());
 
 		// Turn 1 keeps its row's delta; the synthetic run must not add another.
-		const occurrences = renderedText(chatContainer).match(/Δ 1m/g)?.length ?? 0;
+		const occurrences = countTurnElapsed(renderedText(chatContainer));
 		expect(occurrences).toBe(1);
 	});
 	it("seeds the delta from a user-invoked skill prompt in the live path", async () => {
@@ -444,7 +456,7 @@ describe("focus-attach mid-turn keeps the prompt→yield delta", () => {
 		>);
 		await driveAssistantTurn(controller, assistantMessage());
 
-		const occurrences = renderedText(chatContainer).match(/Δ 1m/g)?.length ?? 0;
+		const occurrences = countTurnElapsed(renderedText(chatContainer));
 		expect(occurrences).toBe(1); // the synthetic run's row adds no delta
 	});
 });
