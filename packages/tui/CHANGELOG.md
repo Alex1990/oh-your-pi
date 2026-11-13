@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [18.12.4] - 2026-11-13
+
 ### Changed
 
 - `chatTranscriptDisplayPreferences.showTokenUsage` now defaults to `true`, so per-request token usage rows render unless a host turns them off

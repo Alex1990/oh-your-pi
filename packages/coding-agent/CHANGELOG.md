@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [18.12.4] - 2026-11-13
+
 ### Breaking Changes
 
 - Removed third-party configuration discovery: the `opencode`, `claude`, `claude-plugins`, `claude-md`, `codex`, `gemini`, `cursor`, `windsurf`, `cline`, `github`, and `vscode` providers no longer load context files, rules, skills, slash commands, MCP servers, hooks, tools, settings, or plugins from their directories, and the `skills.enableCodexUser`/`skills.enableClaudeUser`/`skills.enableClaudeProject`/`commands.enableClaudeUser`/`commands.enableClaudeProject` settings are gone

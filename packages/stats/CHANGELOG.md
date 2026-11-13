@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [18.12.4] - 2026-11-13
+
 ### Changed
 
 - The dashboard tab title is now `oyp stats`.
