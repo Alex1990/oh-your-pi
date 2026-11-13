@@ -14,7 +14,7 @@ export const chatTranscriptDisplayPreferences: ChatTranscriptDisplayPreferences 
 	readToolResultPreview: false,
 	showImages: true,
 	cacheMissMarker: false,
-	showTokenUsage: false,
+	showTokenUsage: true,
 	showTurnTime: false,
 };
 

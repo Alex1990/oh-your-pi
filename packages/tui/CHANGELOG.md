@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `chatTranscriptDisplayPreferences.showTokenUsage` now defaults to `true`, so per-request token usage rows render unless a host turns them off
+- Usage rows order their metrics as timestamp, input, output, cache read, clock-marked elapsed time, worded TTFT, then tok/s, instead of leading with a bare `Δ` elapsed marker
+
 ## [18.12.3] - 2026-10-23
 
 ### Added

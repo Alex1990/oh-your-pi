@@ -121,21 +121,21 @@ function usageRowBaseSpecs(usage: Usage, ttftMs?: number, timestamp?: number, tu
 	if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > 0) {
 		specs.push({ value: formatUsageTimestamp(timestamp) });
 	}
-	// The delta the operator actually waited, bare with a space so it scans
-	// apart from the TTFT figure below (which keeps the clock icon).
-	// `message.duration` comes from performance.now(), so the combined value is
-	// fractional; round before formatDuration so the label never prints a raw
-	// float (e.g. `347.28381699998863ms`).
-	if (turnElapsedMs !== undefined && turnElapsedMs > 0) {
-		specs.push({ value: `Δ ${formatDuration(Math.round(turnElapsedMs))}` });
-	}
 	specs.push({ leading: theme.icon.input, value: formatNumber(totalInput) });
 	specs.push({ leading: theme.icon.output, value: formatNumber(usage.output) });
 	if (usage.cacheRead > 0) {
 		specs.push({ leading: theme.icon.cache, value: formatNumber(usage.cacheRead) });
 	}
+	// The delta the operator actually waited. `message.duration` comes from
+	// performance.now(), so the combined value is fractional; round before
+	// formatDuration so the label never prints a raw float (e.g.
+	// `347.28381699998863ms`). TTFT stays worded so the two clocks never
+	// read as the same measurement.
+	if (turnElapsedMs !== undefined && turnElapsedMs > 0) {
+		specs.push({ leading: theme.icon.time, value: formatDuration(Math.round(turnElapsedMs)) });
+	}
 	if (ttftMs && ttftMs > 0) {
-		specs.push({ leading: theme.icon.time, value: `${(ttftMs / 1000).toFixed(1)}s` });
+		specs.push({ value: `ttft ${(ttftMs / 1000).toFixed(1)}s` });
 	}
 	return specs;
 }
