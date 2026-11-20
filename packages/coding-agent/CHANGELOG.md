@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Release archives now bundle `sharp` for every target, so image attachment resizing, diff image previews, and Git-TUI avatars work out of the box
+
 ## [18.12.4] - 2026-11-13
 
 ### Breaking Changes

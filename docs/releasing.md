@@ -183,13 +183,22 @@ symlinks for other platforms. Build a clean hoisted tree with npm:
 ```bash
 mkdir -p /c/Users/<user>/oyp-build/appdeps && cd /c/Users/<user>/oyp-build/appdeps
 npm init -y
-npm install --omit=dev --no-audit --no-fund \
-  onnxruntime-node@1.26.0 fastembed@3.0.0 prettier@3.9.10
+# --force lets npm install the darwin pair on the Windows host (npm only
+# auto-installs the host platform's optional sharp binary).
+npm install --omit=dev --no-audit --no-fund --force \
+  onnxruntime-node@1.26.0 fastembed@3.0.0 prettier@3.9.10 sharp@0.34.5 \
+  @img/sharp-darwin-arm64@0.34.5 @img/sharp-libvips-darwin-arm64@1.2.4
 ```
 
 Match the versions the bundle actually resolves (`node_modules/prettier/package.json`,
 `node_modules/.pnpm/fastembed@3.0.0/...`). The npm packages carry their own
 platform binaries under `bin/`.
+
+Every archive ships working image support: `package-portable.ts` copies `sharp`, prunes
+`@img/*` to the target platform/arch, and fails the stage when the target's
+`@img/sharp-<platform>-<arch>` (plus `@img/sharp-libvips-<platform>-<arch>` off Windows)
+is missing or does not match the version `sharp` pins. Keep the extra `@img` install in
+this step in sync with `sharp`'s `optionalDependencies`.
 
 ### 5d. darwin runtime
 

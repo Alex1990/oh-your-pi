@@ -1046,7 +1046,7 @@ These packages participate only in generation/web build tooling and are not ship
 
 SCOPED NON-PERMISSIVE PACKAGES
 ------------------------------
-The exact @img/sharp-libvips-* 1.2.4 all-target family is LGPL-3.0-or-later. It is not distributed in OMP npm bundles or standalone assets: @huggingface/transformers is always external, installed into a user-side versioned runtime on demand, and sharp is stubbed for speech/text. The dynamically loaded native library remains replaceable. Corresponding source is available from https://github.com/lovell/sharp-libvips.git and upstream libvips sources.
+The exact @img/sharp-libvips-* 1.2.4 family is LGPL-3.0-or-later. Portable release archives bundle `sharp` with the target's `@img/sharp-<platform>-<arch>` binary — plus `@img/sharp-libvips-darwin-*` on macOS — so the CLI's image helper works out of the box; Windows archives use the statically linked `@img/sharp-win32-*` binary and carry no libvips. The dynamically loaded libvips library is shipped as a standalone file under `app/node_modules` and remains replaceable by the user. The speech/text worker still stubs `sharp`. Corresponding source is available from https://github.com/lovell/sharp-libvips.git and upstream libvips sources.
 
 lightningcss 1.32.0 and its exact target leaves are MPL-2.0 build-only dependencies. MPL is not globally allowed and these packages are absent from runtime artifacts.
 

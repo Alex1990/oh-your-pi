@@ -28,9 +28,18 @@ import * as path from "node:path";
 import { isMainModule } from "@oh-my-pi/pi-utils/node-runtime";
 import { assertAddonVersioned } from "../packages/natives/scripts/addon-version";
 
-interface TargetSpec {
-	readonly platform: "win32" | "darwin";
+/** Target identity shared by the staging code and the packaged-runtime checks. */
+export interface PortableTarget {
+	readonly platform: "win32" | "darwin" | "linux";
 	readonly arch: "x64" | "arm64";
+	/**
+	 * Override for the `<platform>-<arch>` tag sharp's `@img` packages use.
+	 * Musl targets need `linuxmusl-<arch>`.
+	 */
+	readonly sharpTag?: string;
+}
+
+interface TargetSpec extends PortableTarget {
 	readonly nodeBinary: string;
 	readonly addons: readonly string[];
 	readonly launcher: string;
@@ -158,35 +167,88 @@ async function pruneOnnxRuntimeBin(packageDir: string, spec: TargetSpec): Promis
 	}
 }
 
+/**
+ * Platform tokens that identify a prebuilt binary package. `linuxmusl` must be
+ * tested before `linux`, otherwise musl leaves survive a glibc target.
+ */
+const PLATFORM_TOKENS = ["linuxmusl", "darwin", "linux", "win32", "windows", "android", "freebsd", "wasm32"] as const;
+
+/**
+ * Architecture tokens, longest first so `arm64` wins over `arm` and `ia32`
+ * wins over `x64`-lookalikes.
+ */
+const ARCH_TOKENS = ["arm64", "riscv64", "ppc64", "s390x", "ia32", "x64", "arm"] as const;
+
+/** Packages the packaged CLI must find for `sharp` to load on this target. */
+export function imageRuntimePackages(spec: PortableTarget): readonly string[] {
+	const tag = spec.sharpTag ?? `${spec.platform}-${spec.arch}`;
+	const packages = ["sharp", `@img/sharp-${tag}`];
+	// Windows sharp binaries link libvips statically; every other target loads
+	// it from a sibling @img/sharp-libvips package.
+	if (spec.platform !== "win32") packages.push(`@img/sharp-libvips-${tag}`);
+	return packages;
+}
+
+/**
+ * Refuse to stage an archive whose `sharp` cannot load. The bundle leaves
+ * `sharp` external and resolves it from `app/node_modules` at runtime, so a
+ * missing or version-mismatched platform binary degrades every image path
+ * instead of failing the build.
+ */
+export async function assertImageRuntime(nodeModules: string, spec: PortableTarget): Promise<void> {
+	const missing: string[] = [];
+	for (const name of imageRuntimePackages(spec)) {
+		if (!(await exists(path.join(nodeModules, name, "package.json")))) missing.push(name);
+	}
+	if (missing.length > 0) {
+		throw new Error(
+			`Portable ${spec.platform}-${spec.arch} archive is missing image runtime package(s): ${missing.join(", ")}. ` +
+				"Stage the deps directory with sharp plus this target's @img package(s) " +
+				"(see docs/releasing.md §5c).",
+		);
+	}
+	const sharpManifest: { version?: unknown; optionalDependencies?: Record<string, string> } = JSON.parse(
+		await fs.readFile(path.join(nodeModules, "sharp", "package.json"), "utf8"),
+	);
+	for (const name of imageRuntimePackages(spec)) {
+		if (name === "sharp") continue;
+		const expected = sharpManifest.optionalDependencies?.[name];
+		const installed: { version?: unknown } = JSON.parse(
+			await fs.readFile(path.join(nodeModules, name, "package.json"), "utf8"),
+		);
+		if (expected !== undefined && installed.version !== expected) {
+			throw new Error(
+				`Portable ${spec.platform}-${spec.arch} archive carries ${name}@${String(installed.version)}, ` +
+					`but sharp@${String(sharpManifest.version)} requires ${expected}.`,
+			);
+		}
+	}
+}
+
 /** Keep only the target platform/arch packages emitted by optionalDependencies. */
-async function pruneOptionalPlatformPackages(nodeModules: string, spec: TargetSpec): Promise<void> {
-	const platformTokens = ["darwin", "linux", "win32", "windows", "android", "freebsd"];
+export async function pruneOptionalPlatformPackages(nodeModules: string, spec: PortableTarget): Promise<void> {
 	for (const entry of await fs.readdir(nodeModules)) {
 		if (entry.startsWith("@")) {
 			const scope = path.join(nodeModules, entry);
 			for (const child of await fs.readdir(scope)) {
-				await pruneIfOtherPlatform(path.join(scope, child), `${entry}/${child}`, spec, platformTokens);
+				await pruneIfOtherPlatform(path.join(scope, child), `${entry}/${child}`, spec);
 			}
 			continue;
 		}
-		await pruneIfOtherPlatform(path.join(nodeModules, entry), entry, spec, platformTokens);
+		await pruneIfOtherPlatform(path.join(nodeModules, entry), entry, spec);
 	}
 }
 
-async function pruneIfOtherPlatform(
-	dir: string,
-	name: string,
-	spec: TargetSpec,
-	platformTokens: readonly string[],
-): Promise<void> {
+async function pruneIfOtherPlatform(dir: string, name: string, spec: PortableTarget): Promise<void> {
 	if (!(await exists(path.join(dir, "package.json")))) return;
-	const token = platformTokens.find(value => name.includes(value));
+	const token = PLATFORM_TOKENS.find(value => name.includes(value));
 	if (!token) return;
 	const matchesPlatform =
 		(spec.platform === "win32" && (token === "win32" || token === "windows")) ||
-		(spec.platform === "darwin" && token === "darwin");
-	const archToken = name.includes("arm64") ? "arm64" : name.includes("x64") ? "x64" : undefined;
-	if (!matchesPlatform || (archToken && archToken !== spec.arch)) {
+		(spec.platform === "darwin" && token === "darwin") ||
+		(spec.platform === "linux" && (token === "linux" || token === "linuxmusl"));
+	const archToken = ARCH_TOKENS.find(value => name.includes(value));
+	if (!matchesPlatform || (archToken !== undefined && archToken !== spec.arch)) {
 		await fs.rm(dir, { recursive: true, force: true });
 	}
 }
@@ -320,9 +382,15 @@ async function main(): Promise<void> {
 		for (const name of ["onnxruntime-node", "fastembed", "prettier"]) {
 			await installRuntimePackage(name, repoRoot, appModules, seen);
 		}
+		// sharp is an optionalDependency of @oh-my-pi/pi-utils; the hoisted root
+		// node_modules does not carry it.
+		await installRuntimePackage("sharp", path.join(repoRoot, "packages", "utils"), appModules, seen);
 	}
 	await pruneOnnxRuntime(appModules, spec);
 	await pruneOptionalPlatformPackages(appModules, spec);
+	// Every archive ships working image support; staging without sharp's
+	// target binary must fail here rather than degrade at runtime.
+	await assertImageRuntime(appModules, spec);
 
 	// 4. Pinned Node runtime.
 	await fs.copyFile(nodeSource, path.join(stage, "runtime", spec.nodeBinary));
