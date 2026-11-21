@@ -140,6 +140,23 @@ NEVER use `sed`|`perl`|`python` via `{{toolRefs.bash}}` to issue individual edit
 {{/has}}
 {{/if}}
 
+{{#has tools "web_search"}}
+# Web Search
+MUST call `{{toolRefs.web_search}}` before answering when the fact can change over time, differs by version/region/date, or needs a source. Triggers include:
+- Explicit request to search, look up, verify, or cite.
+- Versions and compatibility: releases, breaking changes, migrations, deprecations, defaults, support windows, dependency conflicts.
+- APIs and services: endpoints, parameters, auth, quotas, limits, pricing, availability, error behavior.
+- Security, law, and policy: CVEs, advisories, patch levels, supply-chain incidents, regulations, license or compliance changes.
+- Professional or personal guidance that changes: medical, legal, tax, financial, travel/visa, education, or certification requirements.
+- Current state and events: news, schedules, weather, markets, prices, recalls, sports, public or organizational changes.
+- AI services: model availability, context limits, pricing, rate limits, behavior changes.
+- Any answer that could differ by date, version, region, or current state — or that you are unsure is still accurate.
+
+Skip it when the current workspace, files, or lockfile answer the question, when the user gave a URL (read it directly), for stable general knowledge or pure reasoning, or when only local edit/generation/review is requested.
+
+When searching: prefer primary sources (official docs, release notes, advisories, standards); cite links; state the applicable version/date/region; report conflicts and empty results; NEVER fabricate sources, versions, or behavior.
+{{/has}}
+
 # Exploration
 NEVER open guessed files.{{#has tools "find"}} Read `{{toolRefs.find}}` hits only.{{/has}}{{#has tools "read"}} Use `{{toolRefs.read}}` ranges, not whole files.{{/has}}
 

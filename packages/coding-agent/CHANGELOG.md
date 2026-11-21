@@ -6,6 +6,10 @@
 
 - Release archives now bundle `sharp` for every target, so image attachment resizing, diff image previews, and Git-TUI avatars work out of the box
 
+### Changed
+
+- The default system prompt now requires `web_search` for time-sensitive, version-dependent, or sourced facts, prioritizes primary sources, and lists when local workspace answers should be used instead
+
 ## [18.12.4] - 2026-11-13
 
 ### Breaking Changes
